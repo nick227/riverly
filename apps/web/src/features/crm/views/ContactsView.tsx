@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Upload } from 'lucide-react'
 import type { ContactMatch, OpportunitySummary } from '@project/sdk'
-import { useContacts, useCreateContact, useMatchContacts, useOpportunities, useReviewQueue, useSources } from '@project/sdk'
+import { useCreateContact, useMatchContacts, useOpportunities } from '@project/sdk'
 import { Button, ButtonLink, Input, Select, Textarea } from '@/components/primitives/Controls'
-import { Avatar, Identity } from '@/components/patterns/Avatar'
+import { Avatar } from '@/components/patterns/Avatar'
 import { Badge } from '@/components/patterns/Badge'
 import { Card } from '@/components/patterns/Card'
 import { Field } from '@/components/patterns/Field'
@@ -12,31 +12,35 @@ import { Overlay } from '@/components/patterns/Overlay'
 import { Segmented } from '@/components/patterns/Segmented'
 import { EmptyState, ErrorState, Notice, SkeletonList } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
-import { daysSince, fromLocalInput, money, relative } from '@/lib/format'
+import { dateTime, fromLocalInput, money, relative } from '@/lib/format'
 import { useSession } from '@/lib/session'
 import { useDebounce } from '@/lib/useDebounce'
+import { ImportDialog } from '../components/ImportDialog'
 import { MemberSelect } from '../components/MemberSelect'
 import { PipelineBar } from '../components/PipelineBar'
 import { statusLabel, statusTone } from '../config/labels'
 import { useWorkflowView, type WorkflowView } from '../config/workflow'
 
-type Layout = 'list' | 'board' | 'directory'
+type Sort = 'recent' | 'oldest' | 'stale'
+const SORTS: { value: Sort; label: string }[] = [
+  { value: 'recent', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'stale', label: 'Least active' },
+]
 
-/** Contacts combines the pipeline, lead intake and the contact directory over the same records. */
+/** Contacts: the company pipeline as one tight, sortable list. */
 export default function ContactsView() {
   const [params, setParams] = useSearchParams()
   const { view } = useWorkflowView()
   const { can } = useSession()
-  const review = useReviewQueue()
-  const sources = useSources()
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [q, setQ] = useState(params.get('q') ?? '')
   const debounced = useDebounce(q.trim(), 250)
-  const layout = (params.get('layout') as Layout) ?? 'list'
   const stageId = params.get('stage') ?? ''
   const owner = params.get('owner') ?? ''
   const status = params.get('status') ?? 'ACTIVE'
-  const sourceId = params.get('source') ?? ''
+  const sort = (params.get('sort') as Sort) || 'recent'
 
   useEffect(() => setQ(params.get('q') ?? ''), [params])
   const set = (key: string, value: string) => {
@@ -48,10 +52,11 @@ export default function ContactsView() {
 
   const jobs = useOpportunities({
     q: debounced || undefined,
-    stageId: layout === 'list' ? stageId || undefined : undefined,
+    stageId: stageId || undefined,
     ownerId: owner || undefined,
     status: status as never,
-    limit: layout === 'board' ? 100 : 25,
+    sort,
+    limit: 25,
   })
   const counts = jobs.data?.pages[0]?.meta.stageCounts ?? {}
   const total = Object.values(counts).reduce((a, b) => a + b, 0)
@@ -62,18 +67,12 @@ export default function ContactsView() {
       <div className="crm-page__header">
         <div className="crm-page__title">
           <h1 className="heading heading--1">Contacts</h1>
-          <p className="text text--muted">Every lead, where it sits in the pipeline, and who owns it.</p>
         </div>
         <div className="action-bar">
-          {review.data?.length ? (
-            <ButtonLink to="/contacts/review" variant="secondary">
-              Review matches <Badge tone="warning">{review.data.length}</Badge>
-            </ButtonLink>
-          ) : null}
           {can('imports.run') ? (
-            <ButtonLink to="/contacts/import" variant="secondary">
-              <Upload aria-hidden /> Import CSV
-            </ButtonLink>
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              <Upload aria-hidden /> Import
+            </Button>
           ) : null}
           <Button variant="primary" onClick={() => setAdding(true)}>
             <Plus aria-hidden /> Add contact
@@ -87,39 +86,24 @@ export default function ContactsView() {
             <Search aria-hidden />
             <Input type="search" aria-label="Search contacts" placeholder="Search name, email, phone, address" value={q} onChange={(e) => (setQ(e.target.value), set('q', e.target.value.trim()))} />
           </div>
-          {layout !== 'directory' ? (
-            <>
-              <Select aria-label="Owner" value={owner} onChange={(e) => set('owner', e.target.value)} options={[{ value: 'me', label: 'Mine' }, { value: 'none', label: 'Unassigned' }]} placeholder="Everyone" style={{ width: 150 }} />
-              <Select
-                aria-label="Status"
-                value={status}
-                onChange={(e) => set('status', e.target.value === 'ACTIVE' ? '' : e.target.value)}
-                options={[
-                  { value: 'ACTIVE', label: 'Active' },
-                  { value: 'ON_HOLD', label: 'On hold' },
-                  { value: 'LOST', label: 'Lost' },
-                  { value: 'ALL', label: 'All statuses' },
-                ]}
-                style={{ width: 150 }}
-              />
-            </>
-          ) : (
-            <Select aria-label="Source" value={sourceId} onChange={(e) => set('source', e.target.value)} placeholder="All sources" options={(sources.data ?? []).map((s) => ({ value: s.id, label: `${s.displayName} (${s.contactCount})` }))} style={{ width: 220 }} />
-          )}
-          <div className="grow" />
-          <Segmented<Layout>
-            label="Layout"
-            value={layout}
-            onChange={(v) => set('layout', v === 'list' ? '' : v)}
+          <Select aria-label="Owner" value={owner} onChange={(e) => set('owner', e.target.value)} options={[{ value: 'me', label: 'Mine' }, { value: 'none', label: 'Unassigned' }]} placeholder="Everyone" style={{ width: 150 }} />
+          <Select
+            aria-label="Status"
+            value={status}
+            onChange={(e) => set('status', e.target.value === 'ACTIVE' ? '' : e.target.value)}
             options={[
-              { value: 'list', label: 'Pipeline' },
-              { value: 'board', label: 'Board' },
-              { value: 'directory', label: 'Directory' },
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'ON_HOLD', label: 'On hold' },
+              { value: 'LOST', label: 'Lost' },
+              { value: 'ALL', label: 'All statuses' },
             ]}
+            style={{ width: 150 }}
           />
+          <div className="grow" />
+          <Segmented<Sort> label="Sort by" value={sort} onChange={(v) => set('sort', v === 'recent' ? '' : v)} options={SORTS} />
         </div>
 
-        {layout === 'list' && view ? (
+        {view ? (
           <Segmented
             label="Stage"
             value={stageId}
@@ -128,10 +112,8 @@ export default function ContactsView() {
           />
         ) : null}
 
-        {layout === 'directory' ? (
-          <Directory q={debounced} sourceId={sourceId} />
-        ) : jobs.isLoading || !view ? (
-          <SkeletonList rows={5} height={84} />
+        {jobs.isLoading || !view ? (
+          <SkeletonList rows={6} height={60} />
         ) : jobs.error ? (
           <ErrorState error={jobs.error} onRetry={() => void jobs.refetch()} />
         ) : list.length === 0 ? (
@@ -145,126 +127,73 @@ export default function ContactsView() {
               }
             />
           </Card>
-        ) : layout === 'board' ? (
-          <Board jobs={list} view={view} />
         ) : (
-          <div className="stack gap-2">
+          <div className="crm-job-list">
+            <div className="crm-job-row crm-job-row--head" aria-hidden>
+              <span>Contact</span>
+              <span>Stage</span>
+              <span>Assigned to</span>
+              <span>Reference</span>
+              <span>Created</span>
+              <span className="crm-job-row__value">Value</span>
+            </div>
             {list.map((j) => (
               <JobRow key={j.id} job={j} view={view} />
             ))}
           </div>
         )}
-        {layout !== 'directory' && jobs.hasNextPage ? (
+        {jobs.hasNextPage ? (
           <Button variant="ghost" loading={jobs.isFetchingNextPage} onClick={() => void jobs.fetchNextPage()} style={{ alignSelf: 'center' }}>
             Load more
           </Button>
         ) : null}
       </div>
       {adding && view ? <NewContactOverlay view={view} onClose={() => setAdding(false)} /> : null}
+      {importing ? <ImportDialog onClose={() => setImporting(false)} /> : null}
     </main>
   )
 }
 
+/**
+ * One job per row, aligned to the column header: who + what, the segment pipeline, then
+ * owner, lead reference, created time and value. Empty values stay empty — no filler text.
+ */
 function JobRow({ job, view }: { job: OpportunitySummary; view: WorkflowView }) {
   const value = job.contractValueCents ?? job.estimatedValueCents
   const overdue = job.nextFollowUpAt && new Date(job.nextFollowUpAt).getTime() < Date.now()
+  const source = view.bindingOptionLabel('opportunity.leadSourceOptionId', job.leadSourceOptionId)
   return (
     <Link to={`/jobs/${job.id}`} className="crm-job-row">
-      <Identity name={job.contactName} primary={job.contactName} secondary={`${job.title} · opened ${relative(job.leadReceivedAt)}`} />
-      <PipelineBar stages={view.active} currentStageId={job.stageId} compact label={`${job.contactName} pipeline`} />
-      <div className="crm-job-row__side">
-        <span className="text text--sm text--strong text--tabular">{value !== null ? money(value) : 'No value yet'}</span>
-        <span className="text text--xs text--muted">{view.bindingOptionLabel('opportunity.leadSourceOptionId', job.leadSourceOptionId) ?? 'Source not recorded'}</span>
-        <span className="row gap-1">
-          {job.status !== 'OPEN' ? <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge> : null}
-          {overdue ? <Badge tone="warning">Follow-up due</Badge> : null}
-          <span className="text text--xs text--muted">{job.owner?.displayName ?? 'Unassigned'}</span>
+      <span className="crm-job-row__who">
+        <Avatar name={job.contactName} size="sm" />
+        <span className="crm-job-row__text">
+          <span className="crm-job-row__name">
+            {job.contactName}
+            {job.status !== 'OPEN' ? <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge> : null}
+            {overdue ? <Badge tone="warning">Follow-up due</Badge> : null}
+          </span>
+          <span className="crm-job-row__detail">{job.title}</span>
         </span>
-      </div>
+      </span>
+      <PipelineBar stages={view.active} currentStageId={job.stageId} compact label={`${job.contactName} pipeline`} />
+      <span className="crm-job-row__cell" data-label="Assigned to">
+        {job.owner ? (
+          <>
+            <Avatar name={job.owner.displayName} src={job.owner.avatarUrl} size="sm" />
+            <span className="text--truncate">{job.owner.displayName}</span>
+          </>
+        ) : (
+          <span className="text--muted">Unassigned</span>
+        )}
+      </span>
+      <span className="crm-job-row__cell text--muted" data-label="Reference">
+        <span className="text--truncate">{source ?? ''}</span>
+      </span>
+      <span className="crm-job-row__cell text--muted" data-label="Created" title={dateTime(job.leadReceivedAt) ?? undefined}>
+        {relative(job.leadReceivedAt)}
+      </span>
+      <span className="crm-job-row__cell crm-job-row__value">{value !== null ? money(value) : ''}</span>
     </Link>
-  )
-}
-
-function Board({ jobs, view }: { jobs: OpportunitySummary[]; view: WorkflowView }) {
-  return (
-    <div className="crm-board" style={{ '--stages': view.active.length } as React.CSSProperties}>
-      {view.active.map((s) => {
-        const inStage = jobs.filter((j) => j.stageId === s.id)
-        return (
-          <section key={s.id} className="crm-board__column" aria-label={s.label}>
-            <div className="crm-board__header">
-              <span>{s.label}</span>
-              <span className="text text--xs text--muted">{inStage.length}</span>
-            </div>
-            {inStage.map((j) => (
-              <Link key={j.id} to={`/jobs/${j.id}`} className="card card--compact card--interactive stack gap-2">
-                <span className="text text--sm text--strong">{j.contactName}</span>
-                <span className="text text--xs text--muted">{j.title}</span>
-                <span className="row row--between">
-                  <span className="text text--xs text--muted">{daysSince(j.stageEnteredAt)}d in stage</span>
-                  {j.owner ? <Avatar name={j.owner.displayName} src={j.owner.avatarUrl} size="sm" /> : <span className="text text--xs text--muted">Unassigned</span>}
-                </span>
-              </Link>
-            ))}
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function Directory({ q, sourceId }: { q: string; sourceId: string }) {
-  const contacts = useContacts({ q: q || undefined, sourceId: sourceId || undefined })
-  const list = contacts.data?.pages.flatMap((p) => p.data) ?? []
-  if (contacts.isLoading) return <SkeletonList rows={5} height={56} />
-  if (contacts.error) return <ErrorState error={contacts.error} />
-  if (!list.length) return <Card><EmptyState title="No contacts match" /></Card>
-  return (
-    <Card variant="flush">
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Jobs</th>
-              <th>Sources</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <Link to={`/contacts/${c.id}`} className="link">
-                    {c.name}
-                  </Link>
-                </td>
-                <td className="text--tabular">{c.phone ?? '—'}</td>
-                <td>{c.email ?? '—'}</td>
-                <td>{c.opportunities.length}</td>
-                <td>
-                  <span className="row row--wrap gap-1">
-                    {c.sourceNames.map((s) => (
-                      <Badge key={s} tone="outline">
-                        {s}
-                      </Badge>
-                    ))}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {contacts.hasNextPage ? (
-        <div className="row row--end" style={{ padding: 'var(--space-3)' }}>
-          <Button size="sm" variant="ghost" loading={contacts.isFetchingNextPage} onClick={() => void contacts.fetchNextPage()}>
-            Load more
-          </Button>
-        </div>
-      ) : null}
-    </Card>
   )
 }
 

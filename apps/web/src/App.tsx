@@ -12,9 +12,7 @@ const ContactView = lazy(() => import('./features/crm/views/ContactView'))
 const JobView = lazy(() => import('./features/crm/views/JobView'))
 const ActivityView = lazy(() => import('./features/crm/views/ActivityView'))
 const ProfileView = lazy(() => import('./features/crm/views/ProfileView'))
-const ManageView = lazy(() => import('./features/crm/views/ManageView'))
 const SettingsView = lazy(() => import('./features/crm/views/SettingsView'))
-const ImportView = lazy(() => import('./features/crm/views/ImportView'))
 const ReviewView = lazy(() => import('./features/crm/views/ReviewView'))
 const SignupView = lazy(() => import('./features/crm/views/SignupView'))
 const InviteView = lazy(() => import('./features/crm/views/InviteView'))
@@ -53,14 +51,13 @@ export function App() {
             <Route element={<Shell />}>
               <Route index element={<Navigate to="/contacts" replace />} />
               <Route path="/contacts" element={<ContactsView />} />
-              <Route path="/contacts/import" element={<Gate permission="imports.run"><ImportView /></Gate>} />
               <Route path="/contacts/review" element={<ReviewView />} />
               <Route path="/contacts/:contactId" element={<ContactView />} />
               <Route path="/jobs/:jobId" element={<JobView />} />
               <Route path="/activity" element={<ActivityView />} />
               <Route path="/u/:slug" element={<ProfileView />} />
-              <Route path="/manage/*" element={<Gate permission="manage.view"><ManageView /></Gate>} />
-              <Route path="/settings/*" element={<Gate permission="settings.manage"><SettingsView /></Gate>} />
+              <Route path="/manage/*" element={<Navigate to="/activity" replace />} />
+              <Route path="/settings/*" element={<Gate permission="reports.view"><SettingsView /></Gate>} />
               <Route path="*" element={<Navigate to="/contacts" replace />} />
             </Route>
           </Route>

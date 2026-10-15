@@ -1,49 +1,51 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import type { Permission } from '@project/shared/permissions'
 import { cx } from '@/lib/cx'
+import { useSession } from '@/lib/session'
 import { CompanySettings } from './settings/CompanySettings'
 import { TeamSettings } from './settings/TeamSettings'
 import { WorkflowSettings } from './settings/WorkflowSettings'
 import { ResourceSettings } from './settings/ResourceSettings'
 import { EmailSettings } from './settings/EmailSettings'
 import { IntakeSettings } from './settings/IntakeSettings'
+import { ReportsSettings } from './settings/ReportsSettings'
 import { DiagnosticsSettings } from './settings/DiagnosticsSettings'
 
-const SECTIONS = [
-  ['company', 'Company'],
-  ['team', 'Team'],
-  ['workflow', 'Workflow'],
-  ['resources', 'Resources'],
-  ['email', 'Email'],
-  ['intake', 'Lead intake'],
-  ['diagnostics', 'Diagnostics'],
-] as const
+const SECTIONS: { path: string; label: string; permission: Permission; element: React.ReactNode }[] = [
+  { path: 'company', label: 'Company', permission: 'settings.manage', element: <CompanySettings /> },
+  { path: 'team', label: 'Team', permission: 'settings.manage', element: <TeamSettings /> },
+  { path: 'workflow', label: 'Workflow', permission: 'settings.manage', element: <WorkflowSettings /> },
+  { path: 'resources', label: 'Resources', permission: 'settings.manage', element: <ResourceSettings /> },
+  { path: 'email', label: 'Email', permission: 'settings.manage', element: <EmailSettings /> },
+  { path: 'intake', label: 'Lead intake', permission: 'settings.manage', element: <IntakeSettings /> },
+  { path: 'reports', label: 'Reports', permission: 'reports.view', element: <ReportsSettings /> },
+  { path: 'diagnostics', label: 'Diagnostics', permission: 'diagnostics.view', element: <DiagnosticsSettings /> },
+]
 
-/** Company admin configuration: how the application operates (not how work gets done). */
+/** Company configuration and reports. Managers see only the sections their role allows (Reports). */
 export default function SettingsView() {
+  const { can } = useSession()
+  const sections = SECTIONS.filter((s) => can(s.permission))
   return (
     <main className="crm-page">
       <div className="crm-page__header">
         <div className="crm-page__title">
           <h1 className="heading heading--1">Settings</h1>
-          <p className="text text--muted">Vocabulary, workflow, team and email — changes never rewrite history.</p>
         </div>
       </div>
       <nav className="segmented" aria-label="Settings sections" style={{ marginBottom: 'var(--section-gap)' }}>
-        {SECTIONS.map(([path, label]) => (
-          <NavLink key={path} to={`/settings/${path}`} className={({ isActive }) => cx('segmented__item', isActive && 'is-active')}>
-            {label}
+        {sections.map((s) => (
+          <NavLink key={s.path} to={`/settings/${s.path}`} className={({ isActive }) => cx('segmented__item', isActive && 'is-active')}>
+            {s.label}
           </NavLink>
         ))}
       </nav>
       <Routes>
-        <Route index element={<Navigate to="company" replace />} />
-        <Route path="company" element={<CompanySettings />} />
-        <Route path="team" element={<TeamSettings />} />
-        <Route path="workflow" element={<WorkflowSettings />} />
-        <Route path="resources" element={<ResourceSettings />} />
-        <Route path="email" element={<EmailSettings />} />
-        <Route path="intake" element={<IntakeSettings />} />
-        <Route path="diagnostics" element={<DiagnosticsSettings />} />
+        <Route index element={<Navigate to={sections[0]?.path ?? '/contacts'} replace />} />
+        {sections.map((s) => (
+          <Route key={s.path} path={s.path} element={s.element} />
+        ))}
+        <Route path="*" element={<Navigate to="/settings" replace />} />
       </Routes>
     </main>
   )

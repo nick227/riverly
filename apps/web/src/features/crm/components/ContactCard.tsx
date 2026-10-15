@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CalendarClock, Mail, MessageSquare, Phone, Plus } from 'lucide-react'
+import { Mail, MessageSquare, Phone, Plus } from 'lucide-react'
 import type { ContactDetail, OpportunityDetail } from '@project/sdk'
 import { useCreateOpportunity, useUpdateContact } from '@project/sdk'
 import { Button, ButtonAnchor, Input, Select, Textarea } from '@/components/primitives/Controls'
@@ -18,7 +18,7 @@ import { messageStatusLabel, messageStatusTone } from '../config/labels'
 import type { WorkflowView } from '../config/workflow'
 import { FieldControl, type ControlContext } from './FieldControl'
 
-const ACTION_ICON = { call: Phone, text: MessageSquare, email: Mail, schedule: CalendarClock }
+const ACTION_ICON = { call: Phone, text: MessageSquare, email: Mail }
 
 /**
  * Persistent contact bio. Person details are stored on the contact (shared by every job);
@@ -33,11 +33,11 @@ export function ContactCard({
   job: OpportunityDetail
   contact: ContactDetail | undefined
   ctx: ControlContext
-  onSchedule: () => void
+  onSchedule?: () => void
 }) {
   const person = job.contact
   const update = useUpdateContact(person.id)
-  const actions = ctx.view.def.contactCard.actions
+  const actions = (ctx.view.def.contactCard.actions ?? []).filter((a) => a !== 'schedule')
   const jobFields = ctx.view.def.contactCard.jobFieldIds.map((id) => ctx.view.field(id)).filter((f) => f && f.visible !== false)
   const photos = job.attachments.filter((a) => a.mimeType.startsWith('image/'))
   const [showPhotos, setShowPhotos] = useState(false)
@@ -59,7 +59,7 @@ export function ContactCard({
       <div className="crm-contact__identity">
         <Avatar name={person.name} size="lg" />
         <div className="stack gap-1" style={{ minWidth: 0 }}>
-          <h1 className="crm-contact__name">{person.name}</h1>
+          <h2 className="crm-contact__name">{person.name}</h2>
           <span className="text text--xs text--muted">
             {ctx.view.terms.contact} since {dateOnly(person.createdAt, ctx.timezone)}
             {firstSource ? ` · ${firstSource.sourceName}` : ''}
@@ -67,25 +67,25 @@ export function ContactCard({
         </div>
       </div>
 
-      <div className="crm-contact__actions" style={{ '--actions': actions.length } as React.CSSProperties}>
+      <div className="crm-contact__actions">
         {actions.map((a) => {
-          const Icon = ACTION_ICON[a]
+          const Icon = ACTION_ICON[a as keyof typeof ACTION_ICON]
+          if (!Icon) return null
           const label = a[0]!.toUpperCase() + a.slice(1)
           const link = href(a)
-          // Call/Text open the device's phone app — they do not record that a call happened.
           if (a === 'call' || a === 'text')
             return link ? (
               <ButtonAnchor key={a} href={link} size="sm" title={`${label} ${person.phone}`}>
-                <Icon aria-hidden /> {label}
+                <Icon size={14} aria-hidden /> {label}
               </ButtonAnchor>
             ) : (
               <Button key={a} size="sm" disabled title="No phone number">
-                <Icon aria-hidden /> {label}
+                <Icon size={14} aria-hidden /> {label}
               </Button>
             )
           return (
-            <Button key={a} size="sm" onClick={a === 'email' ? () => ctx.openEmail() : onSchedule} disabled={a === 'email' && !person.email} title={a === 'email' && !person.email ? 'No email address' : undefined}>
-              <Icon aria-hidden /> {label}
+            <Button key={a} size="sm" onClick={() => ctx.openEmail()} disabled={!person.email} title={!person.email ? 'No email address' : undefined}>
+              <Icon size={14} aria-hidden /> {label}
             </Button>
           )
         })}
@@ -137,25 +137,34 @@ export function ContactCard({
       ) : null}
 
       <CardSection>
-        <JobsList job={job} view={ctx.view} contactId={person.id} />
-      </CardSection>
-
-      {contact?.recentEmails.length ? (
-        <CardSection>
-          <div className="crm-contact__section-title">Recent emails</div>
-          <div className="list">
+        <div className="row row--between items-center" style={{ marginBottom: 'var(--space-2)' }}>
+          <div className="crm-contact__section-title" style={{ margin: 0 }}>Email history</div>
+          <Button size="sm" variant="ghost" onClick={() => ctx.openEmail()}>
+            <Mail size={13} aria-hidden /> Send email
+          </Button>
+        </div>
+        {contact?.recentEmails && contact.recentEmails.length > 0 ? (
+          <div className="crm-contact__email-list">
             {contact.recentEmails.map((m) => (
-              <div key={m.id} className="list__row" style={{ padding: 'var(--space-2) 0' }}>
-                <span className="text text--sm grow text--truncate" title={m.subject}>
-                  {m.subject}
-                </span>
-                <span className="text text--xs text--muted" style={{ whiteSpace: 'nowrap' }}>{dateOnly(m.queuedAt, ctx.timezone)}</span>
+              <div key={m.id} className="crm-contact__email-item">
+                <div className="stack gap-0.5 grow" style={{ minWidth: 0 }}>
+                  <span className="text text--sm text--truncate text--medium" title={m.subject}>
+                    {m.subject || '(No subject)'}
+                  </span>
+                  <span className="text text--xs text--muted">
+                    {dateOnly(m.queuedAt, ctx.timezone)}
+                  </span>
+                </div>
                 <Badge tone={messageStatusTone(m.status)}>{messageStatusLabel(m.status)}</Badge>
               </div>
             ))}
           </div>
-        </CardSection>
-      ) : null}
+        ) : (
+          <div className="crm-contact__empty-emails">
+            <span className="text text--xs text--muted">No emails sent yet</span>
+          </div>
+        )}
+      </CardSection>
     </Card>
   )
 }
@@ -171,30 +180,6 @@ function InlineContactField({ label, value, type, onSave }: { label: string; val
         renderEditor={({ value: v, setValue }) => <Input type={type} value={v} onChange={(e) => setValue(e.target.value)} autoFocus />}
       />
     </Field>
-  )
-}
-
-function JobsList({ job, view, contactId }: { job: OpportunityDetail; view: WorkflowView; contactId: string }) {
-  const [adding, setAdding] = useState(false)
-  const all = [job, ...job.otherJobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  return (
-    <>
-      <div className="row row--between">
-        <div className="crm-contact__section-title">{view.terms.opportunity}s</div>
-        <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
-          <Plus aria-hidden /> Add
-        </Button>
-      </div>
-      <div className="crm-contact__jobs">
-        {all.map((j) => (
-          <Link key={j.id} to={`/jobs/${j.id}`} className={cx('crm-contact__job', j.id === job.id && 'is-active')} aria-current={j.id === job.id ? 'page' : undefined}>
-            <span className="text--truncate">{j.title}</span>
-            <span className="text text--xs text--muted">{j.status === 'OPEN' ? view.stageLabel(j.stageId) : j.status.toLowerCase().replace('_', ' ')}</span>
-          </Link>
-        ))}
-      </div>
-      {adding ? <NewJobOverlay contactId={contactId} view={view} defaultAddress={job.propertyAddress} onClose={() => setAdding(false)} /> : null}
-    </>
   )
 }
 

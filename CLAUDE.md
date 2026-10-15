@@ -17,7 +17,7 @@ Contacts (list/pipeline/search) + job detail (pipeline bar, StageWorkspace, Cont
 Activity river, Full Record) · intake (manual, CSV + dedupe review, embeddable form) · Activity river
 (events + posts + reactions + recognition) · Email modal with **real sending** (Resend) + dev transport,
 13 stock templates, Request review · files once, linked to job/stage · manual money references
-(unverified) · Manage (workload, neglected leads, inspections, basic reports) · Settings · Profile `/u/:slug`
+(unverified) · Activity "Needs attention" rail for managers (workload, neglected leads, inspections) · Settings (incl. Reports tab for managers) · Profile `/u/:slug`
 (internal visibility).
 
 **Parking lot:** Partner + Platform Admin screens (schema keeps PlatformRoleGrant), WooCommerce/other
@@ -108,6 +108,6 @@ pilot lead channel and success metric (addendum 19).
 
 Built the full MVP bottom-up: MySQL schema + migration → OpenAPI (82 ops) → SDK → Fastify services
 (tenancy, workflow versions, intake/dedupe, Activity river, email outbox + Resend + webhooks, files,
-reports) → React app (Contacts, Job detail with Focus/Full Record, Activity, Profile, Manage, Settings,
+reports) → React app (Contacts, Job detail with Focus/Full Record, Activity, Profile, Settings,
 Import/Review, public form, invite/signup) → Docker/Railway config, CI, docs. Next: deploy to Railway
 (docs/deployment.md), connect a real Resend sender, pilot validation per addendum 19.

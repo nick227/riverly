@@ -26,7 +26,6 @@ export function AppHeader() {
         <div className="crm-header__inner">
           <Link to="/contacts" className="crm-header__brand" aria-label="Home">
             <span className="crm-header__company">{org?.name ?? 'Riverly'}</span>
-            <span className="crm-header__product">Roofing CRM</span>
           </Link>
           <nav className="crm-header__nav" aria-label="Primary">
             <NavLink to="/contacts" className={navClass}>
@@ -35,12 +34,7 @@ export function AppHeader() {
             <NavLink to="/activity" className={navClass}>
               Activity
             </NavLink>
-            {can('manage.view') ? (
-              <NavLink to="/manage" className={navClass}>
-                Manage
-              </NavLink>
-            ) : null}
-            {can('settings.manage') ? (
+            {can('reports.view') ? (
               <NavLink to="/settings" className={navClass}>
                 Settings
               </NavLink>

@@ -1,26 +1,35 @@
-import { useState } from 'react'
-import { ArrowRight, ExternalLink, Mail, MoreHorizontal } from 'lucide-react'
-import type { OpportunityStatus, Resource, StageDef } from '@project/sdk'
-import { useEmailTemplates, useSetOpportunityStatus, useTransitionOpportunity } from '@project/sdk'
-import { Button, IconButton, Textarea } from '@/components/primitives/Controls'
+import type { Resource, StageDef } from '@project/sdk'
+import { useEmailTemplates, useTransitionOpportunity } from '@project/sdk'
+import { Button } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
 import { Card } from '@/components/patterns/Card'
-import { Field } from '@/components/patterns/Field'
-import { Menu, MenuDivider, MenuItem, MenuLabel } from '@/components/patterns/Menu'
-import { Overlay } from '@/components/patterns/Overlay'
 import { toast } from '@/components/patterns/Toast'
 import { cx } from '@/lib/cx'
 import { dateOnly } from '@/lib/format'
 import { statusLabel, statusTone } from '../config/labels'
 import { FieldControl, type ControlContext } from './FieldControl'
+import { ExternalLink, Mail } from 'lucide-react'
 
 const WIDE = new Set(['textarea', 'contact_log', 'progress_log', 'gallery'])
 
 /**
- * The single workspace used for every stage (and stacked for Full Record). Configuration
- * decides which controls appear; viewing a stage never changes the job's stage.
+ * The single, consistent workspace used for every stage.
+ * Fixed set height prevents any page jumping or layout shifting.
+ * Single "Confirm" button with intentional distinct coloration.
  */
-export function StageWorkspace({ stage, ctx, resources, id }: { stage: StageDef; ctx: ControlContext; resources: Resource[]; id?: string }) {
+export function StageWorkspace({
+  stage,
+  ctx,
+  resources,
+  id,
+  onSelectStage,
+}: {
+  stage: StageDef
+  ctx: ControlContext
+  resources: Resource[]
+  id?: string
+  onSelectStage?: (stageId: string) => void
+}) {
   const { job, view } = ctx
   const isCurrent = job.stageId === stage.id
   const entered = [...job.transitions].find((t) => t.toStageId === stage.id && t.kind !== 'STATUS')
@@ -32,156 +41,158 @@ export function StageWorkspace({ stage, ctx, resources, id }: { stage: StageDef;
     .filter(Boolean)
     .slice(0, 3)
 
+  const currentIndex = view.active.findIndex((s) => s.id === stage.id)
+  const isPast = currentIndex >= 0 && currentIndex < view.stageIndex(job.stageId)
+
   return (
-    <Card as="section" id={id} aria-labelledby={`stage-${stage.id}`}>
+    <Card as="section" id={id} className="crm-workspace" aria-labelledby={`stage-${stage.id}`}>
       <div className="crm-workspace__header">
         <div className="crm-workspace__status">
-          <h2 id={`stage-${stage.id}`} className="heading heading--4">
+          <h2 id={`stage-${stage.id}`} className="heading heading--3" style={{ margin: 0 }}>
             {stage.label}
           </h2>
-          <span className="text text--sm text--muted">
-            {isCurrent
-              ? `Current stage${job.stageEnteredAt ? ` since ${dateOnly(job.stageEnteredAt, ctx.timezone)}` : ''}`
-              : entered
-                ? `Reached ${dateOnly(entered.occurredAt, ctx.timezone)} · job is in ${view.stageLabel(job.stageId)}`
-                : `Viewing · job is in ${view.stageLabel(job.stageId)}`}
-          </span>
+          <div className="crm-workspace__meta">
+            <span className="text text--sm text--muted">
+              {isCurrent
+                ? (job.stageEnteredAt ? `Entered ${dateOnly(job.stageEnteredAt, ctx.timezone)}` : 'In progress')
+                : entered
+                  ? `Reached ${dateOnly(entered.occurredAt, ctx.timezone)} · Current: ${view.stageLabel(job.stageId)}`
+                  : `Current: ${view.stageLabel(job.stageId)}`}
+            </span>
+          </div>
         </div>
-        <div className="row gap-2">
+        <div className="crm-workspace__actions">
           {job.status !== 'OPEN' ? <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge> : null}
-          <StageActions stage={stage} ctx={ctx} />
+          <StageConfirmButton stage={stage} ctx={ctx} onSelectStage={onSelectStage} />
         </div>
       </div>
 
-      {stage.instructions || stage.description ? <p className="crm-workspace__instructions" style={{ marginBottom: 'var(--space-5)' }}>{stage.instructions ?? stage.description}</p> : null}
+      <div className="crm-workspace__body">
+        {stage.instructions || stage.description ? (
+          <p className="crm-workspace__instructions">
+            {stage.instructions ?? stage.description}
+          </p>
+        ) : null}
 
-      {fields.length ? (
-        <div className="crm-workspace__controls">
-          {fields.map((f) => (
-            <div key={f!.id} className={cx(WIDE.has(f!.type) && 'crm-workspace__control--wide')}>
-              <FieldControl field={f!} ctx={{ ...ctx, stageId: stage.id }} />
+        {fields.length ? (
+          <div className="crm-workspace__controls">
+            {fields.map((f) => (
+              <div key={f!.id} className={cx(WIDE.has(f!.type) && 'crm-workspace__control--wide')}>
+                <FieldControl field={f!} ctx={{ ...ctx, stageId: stage.id }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text text--sm text--muted">No controls are configured for this stage.</p>
+        )}
+      </div>
+
+      <div className="crm-workspace__footer">
+        <div className="row gap-4 items-center flex-wrap">
+          {stageResources.length ? (
+            <div className="crm-workspace__resources">
+              {stageResources.map((r) => (
+                <a key={r.id} href={r.url} target="_blank" rel="noreferrer" title={r.description ?? undefined}>
+                  {r.label} <ExternalLink aria-hidden />
+                </a>
+              ))}
             </div>
-          ))}
+          ) : null}
+          {stageTemplates.length ? (
+            <div className="action-bar">
+              {stageTemplates.map((t) => (
+                <Button key={t!.id} size="sm" variant="secondary" onClick={() => ctx.openEmail(t!.stableKey)}>
+                  <Mail size={13} aria-hidden /> {t!.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
         </div>
-      ) : (
-        <p className="text text--sm text--muted">No controls are configured for this stage.</p>
-      )}
-
-      {stageResources.length || stageTemplates.length ? (
-        <div className="crm-workspace__footer">
-          <div className="crm-workspace__resources">
-            {stageResources.map((r) => (
-              <a key={r.id} href={r.url} target="_blank" rel="noreferrer" title={r.description ?? undefined}>
-                {r.label} <ExternalLink aria-hidden />
-              </a>
-            ))}
-          </div>
-          <div className="action-bar">
-            {stageTemplates.map((t) => (
-              <Button key={t!.id} size="sm" variant="secondary" onClick={() => ctx.openEmail(t!.stableKey)}>
-                <Mail aria-hidden /> {t!.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      </div>
     </Card>
   )
 }
 
-/** Explicit, logged stage moves (forward or back) and lifecycle status — never gated. */
-function StageActions({ stage, ctx }: { stage: StageDef; ctx: ControlContext }) {
+/**
+ * Confirm / Unconfirm button.
+ * - On unconfirmed stage: says "Confirm", confirming this stage (does NOT advance to next stage).
+ * - On confirmed stage: says "Unconfirm", which unconfirms this stage and any stages in front of it.
+ */
+export function StageConfirmButton({
+  stage,
+  ctx,
+  onSelectStage,
+  size = 'sm',
+}: {
+  stage: StageDef
+  ctx: ControlContext
+  onSelectStage?: (stageId: string) => void
+  size?: 'sm' | 'md'
+}) {
   const { job, view } = ctx
   const transition = useTransitionOpportunity(job.id)
-  const setStatus = useSetOpportunityStatus(job.id)
-  const [dialog, setDialog] = useState<{ kind: 'move'; toStageId: string } | { kind: 'status'; status: OpportunityStatus } | null>(null)
-  const [reason, setReason] = useState('')
-  const isCurrent = job.stageId === stage.id
-  const next = view.nextStage(job.stageId)
-  const target = isCurrent ? next : stage
-  const backward = target ? view.stageIndex(target.id) < view.stageIndex(job.stageId) : false
 
-  function move(toStageId: string, why?: string) {
-    transition.mutate(
-      { toStageId, reason: why || null },
-      { onSuccess: () => (toast.success(`Moved to ${view.stageLabel(toStageId)}`), setDialog(null), setReason('')), onError: (e) => toast.error(e) },
+  if (stage.retired) return null
+
+  const stageIndex = view.active.findIndex((s) => s.id === stage.id)
+  const currentStageIndex = view.stageIndex(job.stageId)
+  const isConfirmed = stageIndex >= 0 && stageIndex <= currentStageIndex
+
+  // Confirmed stage: button says "Unconfirm", which unconfirms this stage and any in front of it
+  if (isConfirmed) {
+    const isFirstStage = stageIndex === 0
+    const isOnlyConfirmed = currentStageIndex === 0
+    const disabled = isFirstStage && isOnlyConfirmed
+    const targetStage = (stageIndex > 0 ? view.active[stageIndex - 1] : view.active[0]) ?? view.active[0]
+    if (!targetStage) return null
+
+    return (
+      <Button
+        size={size}
+        loading={transition.isPending}
+        disabled={disabled}
+        className="crm-workspace__confirm-btn crm-workspace__confirm-btn--unconfirm"
+        title={disabled ? 'First stage cannot be unconfirmed' : `Unconfirm ${stage.label} and any stages in front of it`}
+        onClick={() => {
+          if (disabled) return
+          transition.mutate(
+            { toStageId: targetStage.id, reason: null },
+            {
+              onSuccess: () => {
+                toast.success(`Unconfirmed stages in front of ${targetStage.label}`)
+                onSelectStage?.(targetStage.id)
+              },
+              onError: (e) => toast.error(e),
+            },
+          )
+        }}
+      >
+        Unconfirm
+      </Button>
     )
   }
-  function applyStatus(status: OpportunityStatus, why?: string) {
-    setStatus.mutate({ status, reason: why || null }, { onSuccess: () => (toast.success(`Marked ${statusLabel(status).toLowerCase()}`), setDialog(null), setReason('')), onError: (e) => toast.error(e) })
-  }
 
+  // Unconfirmed stage: button says "Confirm", which confirms up to this stage (does not advance past it)
   return (
-    <>
-      {target && !stage.retired ? (
-        <Button
-          size="sm"
-          variant={isCurrent ? 'primary' : 'secondary'}
-          loading={transition.isPending}
-          onClick={() => (backward ? setDialog({ kind: 'move', toStageId: target.id }) : move(target.id))}
-        >
-          {isCurrent ? (view.stage(job.stageId)?.primaryActionLabel ?? `Move to ${target.label}`) : backward ? 'Move job back here' : 'Move job here'}
-          {isCurrent ? <ArrowRight aria-hidden /> : null}
-        </Button>
-      ) : null}
-      <Menu label="Stage options" trigger={(p) => <IconButton label="Stage options" icon={<MoreHorizontal />} size="sm" {...p} />}>
-        {(close) => (
-          <>
-            <MenuLabel>Move job to</MenuLabel>
-            {view.active
-              .filter((s) => s.id !== job.stageId)
-              .map((s) => (
-                <MenuItem
-                  key={s.id}
-                  onSelect={() => {
-                    close()
-                    view.stageIndex(s.id) < view.stageIndex(job.stageId) ? setDialog({ kind: 'move', toStageId: s.id }) : move(s.id)
-                  }}
-                >
-                  {s.label}
-                </MenuItem>
-              ))}
-            <MenuDivider />
-            {job.status === 'OPEN' || job.status === 'WON' ? (
-              <>
-                <MenuItem onSelect={() => (close(), setDialog({ kind: 'status', status: 'ON_HOLD' }))}>Put on hold</MenuItem>
-                <MenuItem onSelect={() => (close(), setDialog({ kind: 'status', status: 'LOST' }))}>Mark lost</MenuItem>
-                <MenuItem onSelect={() => (close(), setDialog({ kind: 'status', status: 'CANCELED' }))}>Cancel job</MenuItem>
-              </>
-            ) : (
-              <MenuItem onSelect={() => (close(), applyStatus('OPEN'))}>Reopen job</MenuItem>
-            )}
-          </>
-        )}
-      </Menu>
-      <Overlay
-        open={!!dialog}
-        onRequestClose={() => setDialog(null)}
-        title={dialog?.kind === 'move' ? `Move back to ${view.stageLabel(dialog.toStageId)}` : dialog ? statusLabel(dialog.status) : ''}
-        footer={
-          <>
-            <span />
-            <div className="action-bar">
-              <Button variant="ghost" onClick={() => setDialog(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                loading={transition.isPending || setStatus.isPending}
-                disabled={dialog?.kind === 'status' && dialog.status !== 'ON_HOLD' && !reason.trim()}
-                onClick={() => (dialog?.kind === 'move' ? move(dialog.toStageId, reason) : dialog && applyStatus(dialog.status, reason))}
-              >
-                Confirm
-              </Button>
-            </div>
-          </>
-        }
-      >
-        <Field label={dialog?.kind === 'status' && dialog.status !== 'ON_HOLD' ? 'Reason (required)' : 'Reason (optional)'} hint="Saved with the job’s history.">
-          {(id) => <Textarea id={id} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />}
-        </Field>
-      </Overlay>
-    </>
+    <Button
+      size={size}
+      loading={transition.isPending}
+      className="crm-workspace__confirm-btn crm-workspace__confirm-btn--confirm"
+      title={`Confirm ${stage.label}`}
+      onClick={() =>
+        transition.mutate(
+          { toStageId: stage.id, reason: null },
+          {
+            onSuccess: () => {
+              toast.success(`Confirmed ${stage.label}`)
+              onSelectStage?.(stage.id)
+            },
+            onError: (e) => toast.error(e),
+          },
+        )
+      }
+    >
+      Confirm
+    </Button>
   )
 }
-

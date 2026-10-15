@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
-import { useContact, useOpportunity, useResources } from '@project/sdk'
+import { useContact, useOpportunity, useResources, useTransitionOpportunity } from '@project/sdk'
 import { Badge } from '@/components/patterns/Badge'
-import { Segmented } from '@/components/patterns/Segmented'
+import { toast } from '@/components/patterns/Toast'
 import { ErrorState, PageState, Skeleton } from '@/components/patterns/States'
 import { dateOnly } from '@/lib/format'
 import { useSession } from '@/lib/session'
@@ -19,9 +19,10 @@ import { statusLabel, statusTone } from '../config/labels'
 import { useWorkflowView } from '../config/workflow'
 
 /**
- * Job detail. The pipeline shows official state; the selected stage is only a workspace
- * view (kept in the URL, so it survives reloads and overlay closes); Activity shows what
- * happened. Focus and Full Record render the same components over the same data.
+ * Individual contact workflow / job detail page.
+ * Title displays the customer's name; pipeline bar displays distinct stage progress
+ * and the active viewing segment; stage workspace provides consistent layouts and
+ * one-click stage confirmation.
  */
 export default function JobView() {
   const { jobId = '' } = useParams()
@@ -33,15 +34,17 @@ export default function JobView() {
   const { org } = useSession()
   const [email, setEmail] = useState<EmailRequest | null>(null)
   const [scheduling, setScheduling] = useState(false)
+  const transition = useTransitionOpportunity(jobId)
 
-  const mode = params.get('view') === 'full' ? 'full' : 'focus'
   const data = job.data
   const selectedStageId = params.get('stage') ?? data?.stageId ?? ''
   const selected = view?.stage(selectedStageId) ?? view?.stage(data?.stageId)
 
   const stageMeta = useMemo(() => {
     const meta: Record<string, string> = {}
-    for (const t of [...(data?.transitions ?? [])].reverse()) if (t.kind !== 'STATUS') meta[t.toStageId] = dateOnly(t.occurredAt, org?.timezone) ?? ''
+    for (const t of [...(data?.transitions ?? [])].reverse()) {
+      if (t.kind !== 'STATUS') meta[t.toStageId] = dateOnly(t.occurredAt, org?.timezone) ?? ''
+    }
     return meta
   }, [data?.transitions, org?.timezone])
 
@@ -63,14 +66,46 @@ export default function JobView() {
     const next = new URLSearchParams(params)
     next.set('stage', id)
     setParams(next, { replace: true })
-    if (mode === 'full') document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
-  const setMode = (m: 'focus' | 'full') => {
-    const next = new URLSearchParams(params)
-    if (m === 'full') next.set('view', 'full')
-    else next.delete('view')
-    setParams(next, { replace: true })
+
+  const toggleStage = (stageId: string) => {
+    const targetIndex = view.active.findIndex((s) => s.id === stageId)
+    const currentIdx = view.stageIndex(data.stageId)
+    if (targetIndex < 0) return
+
+    if (targetIndex > currentIdx) {
+      // Unconfirmed stage: confirm up to this stage (do not advance past it)
+      transition.mutate(
+        { toStageId: stageId, reason: null },
+        {
+          onSuccess: () => {
+            toast.success(`Confirmed ${view.stageLabel(stageId)}`)
+            selectStage(stageId)
+          },
+          onError: (e) => toast.error(e),
+        },
+      )
+    } else {
+      // Confirmed stage: unconfirm this stage and any in front of it
+      if (targetIndex === 0 && currentIdx === 0) {
+        return
+      }
+      const targetStage = (targetIndex > 0 ? view.active[targetIndex - 1] : view.active[0]) ?? view.active[0]
+      if (!targetStage) return
+
+      transition.mutate(
+        { toStageId: targetStage.id, reason: null },
+        {
+          onSuccess: () => {
+            toast.success(`Unconfirmed stages in front of ${targetStage.label}`)
+            selectStage(targetStage.id)
+          },
+          onError: (e) => toast.error(e),
+        },
+      )
+    }
   }
+
   const pipelineStages = selected.retired ? [...view.active, selected] : view.active
 
   return (
@@ -81,27 +116,27 @@ export default function JobView() {
             <Link to="/contacts" className="row gap-1 text text--sm text--muted">
               <ChevronLeft size={14} aria-hidden /> Contacts
             </Link>
-            <div className="row row--wrap gap-3">
-              <h1 className="heading heading--2">{data.title}</h1>
+            <div className="row row--wrap gap-3 items-center">
+              <h1 className="heading heading--2">{data.contact.name}</h1>
               {data.status !== 'OPEN' ? <Badge tone={statusTone(data.status)}>{statusLabel(data.status)}</Badge> : null}
             </div>
             <span className="text text--sm text--muted">
-              {data.contact.name}
-              {data.propertyAddress ? ` · ${data.propertyAddress}` : ''} · {view.terms.opportunity.toLowerCase()} opened {dateOnly(data.leadReceivedAt, org?.timezone)}
+              {data.title && data.title !== data.contact.name ? `${data.title} · ` : ''}
+              {data.propertyAddress ? `${data.propertyAddress} · ` : ''}
+              {view.terms.opportunity.toLowerCase()} opened {dateOnly(data.leadReceivedAt, org?.timezone)}
             </span>
           </div>
-          <Segmented
-            label="Layout"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'focus', label: 'Focus' },
-              { value: 'full', label: 'Full record' },
-            ]}
-          />
         </div>
         <div className="crm-job__pipeline-sticky">
-          <PipelineBar stages={pipelineStages} currentStageId={data.stageId} selectedStageId={selected.id} onSelect={selectStage} meta={stageMeta} label={`${view.terms.opportunity} stages`} />
+          <PipelineBar
+            stages={pipelineStages}
+            currentStageId={data.stageId}
+            selectedStageId={selected.id}
+            onSelect={selectStage}
+            onToggleStage={toggleStage}
+            meta={stageMeta}
+            label={`${view.terms.opportunity} stages`}
+          />
         </div>
       </div>
 
@@ -110,15 +145,12 @@ export default function JobView() {
           <ContactCard job={data} contact={contact.data} ctx={ctx} onSchedule={() => setScheduling(true)} />
         </aside>
         <div className="crm-job__main">
-          {mode === 'focus' ? (
-            <StageWorkspace stage={selected} ctx={ctx} resources={resources.data ?? []} />
-          ) : (
-            view.active.map((s) => (
-              <div key={s.id} id={`section-${s.id}`} style={{ scrollMarginTop: 'calc(var(--header-height) + 96px)' }}>
-                <StageWorkspace stage={s} ctx={{ ...ctx, stageId: s.id }} resources={resources.data ?? []} />
-              </div>
-            ))
-          )}
+          <StageWorkspace
+            stage={selected}
+            ctx={ctx}
+            resources={resources.data ?? []}
+            onSelectStage={selectStage}
+          />
           <ActivityRiver
             key={data.id}
             base={{ opportunityId: data.id }}

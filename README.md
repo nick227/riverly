@@ -28,7 +28,7 @@ inspections with photos and reports, contracts, invoices, team posts and recogni
 |---|---|---|
 | `chris@nvcustomhomes.test` | Owner | Everything, incl. granting Admin and the pending invitation |
 | `dana@nvcustomhomes.test` | Admin | Settings: workflow labels/stages, templates, senders, forms, team |
-| `marcus@nvcustomhomes.test` | Manager | Manage: unassigned/neglected leads, workload, reports, CSV import |
+| `marcus@nvcustomhomes.test` | Manager | Activity "Needs attention" rail (unassigned/neglected leads, workload), Settings → Reports, CSV import |
 | `ava@nvcustomhomes.test` | Manager | Production side: crews, progress updates, final photos |
 | `nina@nvcustomhomes.test` | Member | Senior salesperson with a full book (Don Lou, Robert Hale…) |
 | `jake@nvcustomhomes.test` | Member | Salesperson with overdue follow-ups (Maria Santos, Angela Ruiz…) |

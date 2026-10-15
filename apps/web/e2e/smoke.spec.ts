@@ -60,12 +60,39 @@ test.describe('job workflow', () => {
 })
 
 test.describe('roles', () => {
-  test('managers see Manage but not Settings', async ({ page }) => {
+  test('managers get the attention rail on Activity and only Reports in Settings', async ({ page }) => {
     await loginAs(page, USERS.manager)
-    await page.getByRole('link', { name: 'Manage' }).click()
-    await expect(page.getByRole('heading', { name: 'Unassigned leads' })).toBeVisible()
+    await page.getByRole('link', { name: 'Activity', exact: true }).click()
+    await expect(page.getByRole('complementary', { name: 'Needs attention' }).getByRole('heading', { name: 'Upcoming appointments' })).toBeVisible()
+    await page.getByRole('link', { name: 'Settings', exact: true }).click()
+    await expect(page).toHaveURL(/\/settings\/reports/)
+    await expect(page.getByRole('heading', { name: 'Speed to first outreach' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Workflow' })).toHaveCount(0)
+    await page.goto('/settings/workflow')
+    await expect(page).toHaveURL(/\/settings\/reports/)
+  })
+
+  test('members see neither the attention rail nor Settings', async ({ page }) => {
+    await loginAs(page, USERS.member)
+    await page.goto('/activity')
+    await expect(page.getByRole('complementary', { name: 'Needs attention' })).toHaveCount(0)
     await page.goto('/settings')
     await expect(page).toHaveURL(/\/contacts/)
+  })
+
+  test('contacts list: sort options and the Import modal (no separate page)', async ({ page }) => {
+    await loginAs(page, USERS.manager)
+    await page.getByRole('tab', { name: 'Least active' }).click()
+    await expect(page).toHaveURL(/sort=stale/)
+    await page.getByRole('tab', { name: 'Oldest' }).click()
+    await expect(page.locator('.crm-job-row').nth(1)).toBeVisible()
+    await expect(page.getByText('No value yet')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Import', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('Choose a CSV file')).toBeVisible()
+    await expect(page).toHaveURL(/\/contacts/)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
   })
 
   test('admins can open the workflow editor', async ({ page }) => {

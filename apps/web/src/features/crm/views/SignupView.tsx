@@ -6,7 +6,7 @@ import { Field } from '@/components/patterns/Field'
 import { Notice } from '@/components/patterns/States'
 import { AuthFrame } from '../components/AuthFrame'
 
-/** Licensed company onboarding: creates the company, its owner and the roofing workflow. */
+/** Licensed company onboarding: creates the company, its owner and workflow. */
 export default function SignupView() {
   const create = useCreateCompany()
   const navigate = useNavigate()

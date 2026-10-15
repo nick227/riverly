@@ -133,13 +133,10 @@ export function PostComposer({ opportunityId }: { opportunityId?: string }) {
   const key = useRef(idempotencyKey())
   if (!me) return null
   return (
-    <div className="crm-composer">
-      <div className="row row--start gap-3">
+    <div className="crm-composer crm-composer--inline">
+      <div className="crm-composer__line">
         <Avatar name={me.displayName} src={me.avatarUrl} size="sm" />
-        <Textarea aria-label="Share an update" placeholder="Share an update with the team" value={body} onChange={(e) => setBody(e.target.value)} rows={2} />
-      </div>
-      {attach.list}
-      <div className="crm-composer__footer">
+        <Textarea aria-label="Share an update" placeholder="Share an update with the team" value={body} onChange={(e) => setBody(e.target.value)} rows={1} />
         {attach.picker}
         <Button
           size="sm"
@@ -164,6 +161,7 @@ export function PostComposer({ opportunityId }: { opportunityId?: string }) {
           Post
         </Button>
       </div>
+      {attach.list}
     </div>
   )
 }

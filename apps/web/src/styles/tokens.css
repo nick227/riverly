@@ -26,6 +26,7 @@
     --color-surface: var(--white);
     --color-surface-subtle: var(--gray-50);
     --color-surface-hover: var(--gray-100);
+    --color-composer-input: var(--gray-200);
     --color-text: var(--gray-900);
     --color-text-secondary: var(--gray-600);
     --color-muted: var(--gray-500);
@@ -48,9 +49,11 @@
     --button-primary-text: var(--color-accent-text);
     --button-secondary-bg: var(--color-surface);
     --button-secondary-border: var(--color-border-strong);
-    --pipeline-current: var(--color-accent);
-    --pipeline-done: var(--gray-400);
-    --pipeline-todo: var(--gray-150);
+    --pipeline-current: #2563eb;
+    --pipeline-current-bg: #eff6ff;
+    --pipeline-done: #16a34a;
+    --pipeline-done-bg: #f0fdf4;
+    --pipeline-todo: #e5e7eb;
 
     /* Typography */
     --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -131,6 +134,7 @@
     --color-surface: #161616;
     --color-surface-subtle: #1c1c1c;
     --color-surface-hover: #222222;
+    --color-composer-input: #262626;
     --color-text: #f2f2f2;
     --color-text-secondary: #c4c4c4;
     --color-muted: #9a9a9a;
@@ -147,8 +151,11 @@
     --color-danger: #fb923c;
     --color-danger-bg: #2b1810;
     --color-overlay: rgb(0 0 0 / 0.6);
-    --pipeline-done: #6b6b6b;
-    --pipeline-todo: #2a2a2a;
+    --pipeline-current: #3b82f6;
+    --pipeline-current-bg: #172554;
+    --pipeline-done: #22c55e;
+    --pipeline-done-bg: #14532d;
+    --pipeline-todo: #27272a;
     --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.6);
     --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.5);
     color-scheme: dark;

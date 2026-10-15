@@ -1,7 +1,8 @@
 # Company admin guide
 
-Settings is for Admins and the Owner. Managers use **Manage** (assignments, workload, reports) and
-cannot change configuration.
+Settings is for Admins and the Owner. Managers see only the **Reports** tab there and cannot change
+configuration; their assignments, neglected leads, appointments and workload live in the
+**Needs attention** rail beside the Activity river.
 
 | Section | What you can do | Safety rules |
 |---|---|---|
