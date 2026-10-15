@@ -1,0 +1,9 @@
+/* Cascade order is fixed here; every stylesheet declares its layer. */
+@layer reset, tokens, base, primitives, patterns, features, utilities;
+
+@import './tokens.css';
+@import './base.css';
+@import './primitives.css';
+@import './patterns.css';
+@import './features.css';
+@import './utilities.css';

@@ -1,0 +1,6 @@
+{
+  "name": "@project/api-spec",
+  "version": "0.0.1",
+  "private": true,
+  "exports": { ".": "./openapi.yaml" }
+}

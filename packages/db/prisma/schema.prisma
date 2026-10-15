@@ -1,0 +1,897 @@
+// Riverly — MySQL 8 schema (Prisma). Source of truth for persistence.
+//
+// Tenancy: every business row carries organizationId. Child rows of Contact and
+// Opportunity reference their parent through a compound (id, organizationId)
+// foreign key so the database itself rejects cross-tenant links. Services still
+// scope every query by organizationId from the authenticated membership.
+//
+// History: ActivityEvent and StageTransition are append-only. Corrections are new
+// rows that reference the corrected row (revisionOfId), never in-place edits.
+// Stage, field and option IDs are stable keys from the workflow definition JSON;
+// labels may change freely.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Identity & tenancy ─────────────────────────────
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum PlatformRole {
+  PLATFORM_ADMIN
+  AFFILIATE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String
+  // Profile presentation (global identity; work history is scoped per company at read time)
+  slug         String    @unique
+  title        String?
+  bio          String?   @db.Text
+  avatarUrl    String?   @db.VarChar(1024)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  sessions           Session[]
+  memberships        Membership[]
+  platformRoles      PlatformRoleGrant[]
+  ownedOpportunities Opportunity[]       @relation("OpportunityOwner")
+}
+
+model Session {
+  id                   String   @id @default(cuid())
+  userId               String
+  tokenHash            String   @unique
+  activeOrganizationId String?
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+  lastSeenAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  timezone  String   @default("America/Denver")
+  // Branding / vocabulary overrides live in the workflow definition; these are company identity.
+  logoUrl   String?  @db.VarChar(1024)
+  reviewUrl String?  @db.VarChar(1024)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  workflows     WorkflowVersion[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  role           OrgRole
+  tokenHash      String    @unique
+  invitedById    String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedById   String?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, email])
+}
+
+// Platform privileges are independent of company roles and never imply tenant data access.
+model PlatformRoleGrant {
+  id        String       @id @default(cuid())
+  userId    String
+  role      PlatformRole
+  grantedAt DateTime     @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, role])
+}
+
+// ───────────────────────────── Workflow configuration ─────────────────────────
+
+// Immutable published snapshot. `definition` is validated by @project/shared
+// (workflowDefinitionSchema). Jobs pin the version they were created/last mapped under.
+model WorkflowVersion {
+  id             String   @id @default(cuid())
+  organizationId String
+  templateKey    String
+  version        Int
+  definition     Json
+  publishedById  String?
+  publishedAt    DateTime @default(now())
+  changeNote     String?  @db.Text
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  opportunities Opportunity[]
+
+  @@unique([organizationId, templateKey, version])
+  @@index([organizationId, publishedAt])
+}
+
+model Resource {
+  id             String   @id @default(cuid())
+  organizationId String
+  label          String
+  url            String   @db.VarChar(2048)
+  description    String?  @db.Text
+  stageIds       Json // stable stage IDs this resource is shown on
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, isActive])
+}
+
+// ───────────────────────────── CRM core ───────────────────────────────────────
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+  ON_HOLD
+  CANCELED
+}
+
+enum TimestampProvenance {
+  PROVIDER // timestamp supplied by the originating form/provider
+  SYSTEM // timestamp recorded by Riverly at ingest
+  MANUAL // entered by a person
+  IMPORTED // read from an imported file column
+}
+
+model Contact {
+  id              String    @id @default(cuid())
+  organizationId  String
+  name            String
+  email           String?
+  emailNormalized String?
+  phone           String?
+  phoneNormalized String?
+  addressLine     String?
+  city            String?
+  region          String?
+  postalCode      String?
+  notes           String?   @db.Text
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  organization  Organization        @relation(fields: [organizationId], references: [id])
+  opportunities Opportunity[]
+  sourceLinks   ContactSourceLink[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, emailNormalized])
+  @@index([organizationId, phoneNormalized])
+  @@index([organizationId, name])
+  @@index([organizationId, createdAt])
+}
+
+model Opportunity {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  contactId           String
+  workflowVersionId   String
+  stageId             String // stable stage key from the workflow definition
+  stageEnteredAt      DateTime            @default(now())
+  status              OpportunityStatus   @default(OPEN)
+  statusReason        String?             @db.Text
+  ownerId             String?
+  title               String // e.g. "Roof replacement" — the service requested
+  propertyAddress     String?
+  inquiry             String?             @db.Text
+  leadSourceOptionId  String? // option ID of the leadSource field (stable)
+  urgencyOptionId     String?
+  estimatedValueCents Int?
+  contractValueCents  Int?
+  nextFollowUpAt      DateTime?
+  leadReceivedAt      DateTime            @default(now())
+  leadReceivedVia     TimestampProvenance @default(SYSTEM)
+  sourceRecordId      String?             @unique
+  lastActivityAt      DateTime            @default(now())
+  createdById         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
+
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  contact         Contact         @relation(fields: [contactId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id])
+  owner           User?           @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  sourceRecord    SourceRecord?   @relation(fields: [sourceRecordId], references: [id])
+
+  fieldValues      OpportunityFieldValue[]
+  stageTransitions StageTransition[]
+  appointments     Appointment[]
+  participants     OpportunityParticipant[]
+  externalLinks    ExternalRecordLink[]
+  reviewRequests   ReviewRequest[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, stageId, status])
+  @@index([organizationId, ownerId, status])
+  @@index([organizationId, contactId])
+  @@index([organizationId, lastActivityAt])
+  @@index([organizationId, createdAt])
+}
+
+// Current value of a configured (non-native) field. Native fields live on Opportunity.
+model OpportunityFieldValue {
+  organizationId    String
+  opportunityId     String
+  fieldId           String
+  value             Json
+  workflowVersionId String
+  updatedById       String?
+  updatedAt         DateTime @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([opportunityId, fieldId])
+  @@index([organizationId, fieldId])
+}
+
+enum TransitionKind {
+  FORWARD
+  BACKWARD
+  ADMIN_MAPPING // stage retired by an admin; job explicitly remapped
+  STATUS // lifecycle status change (lost / on hold / reopened) without stage move
+}
+
+model StageTransition {
+  id                String             @id @default(cuid())
+  organizationId    String
+  opportunityId     String
+  workflowVersionId String
+  kind              TransitionKind
+  fromStageId       String?
+  toStageId         String
+  fromStatus        OpportunityStatus?
+  toStatus          OpportunityStatus?
+  reason            String?            @db.Text
+  actorId           String?
+  occurredAt        DateTime           @default(now())
+  idempotencyKey    String?
+
+  opportunity Opportunity @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([opportunityId, idempotencyKey])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, toStageId, occurredAt])
+}
+
+// ───────────────────────────── Activity river ─────────────────────────────────
+
+enum ActorType {
+  USER
+  SYSTEM
+  INTEGRATION
+}
+
+enum ActivityCategory {
+  WORK // pipeline, calls, notes, appointments, files on jobs
+  MESSAGE // outbound/inbound email
+  TEAM // posts, recognition
+  SYSTEM // imports, worker outcomes, failures
+}
+
+enum Verification {
+  SELF_REPORTED // a person said it happened (call log, manual note)
+  PROVIDER_VERIFIED // an external provider confirmed it (email provider event)
+  SYSTEM_RECORDED // Riverly itself performed/observed it (stage change, upload)
+}
+
+// One immutable business fact. The company river, a job's history and a person's
+// profile highlights are all projections of this table.
+model ActivityEvent {
+  id                String           @id @default(cuid())
+  organizationId    String
+  type              String // stable verb: lead.received, contact.attempt, note.added, stage.changed, ...
+  category          ActivityCategory
+  actorType         ActorType
+  actorId           String? // User id when actorType=USER
+  actorLabel        String? // system/integration name, e.g. "Email worker"
+  contactId         String?
+  opportunityId     String?
+  stageId           String?
+  workflowVersionId String?
+  methodId          String? // contact method option ID (phone/email/sms)
+  outcomeId         String? // outcome option ID (voicemail/spoke/...)
+  note              String?          @db.Text
+  payload           Json?
+  verification      Verification
+  postId            String?          @unique
+  recognitionId     String?          @unique
+  outboundMessageId String?          @unique // one river item per message; lifecycle grouped on it
+  importRunId       String?
+  revisionOfId      String?
+  correlationId     String?
+  idempotencyKey    String?
+  occurredAt        DateTime         @default(now())
+  recordedAt        DateTime         @default(now())
+
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, occurredAt, id])
+  @@index([organizationId, category, occurredAt])
+  @@index([organizationId, actorId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([contactId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+}
+
+model Post {
+  id             String    @id @default(cuid())
+  organizationId String
+  authorId       String
+  body           String    @db.Text
+  opportunityId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@index([organizationId, createdAt])
+}
+
+model Comment {
+  id              String    @id @default(cuid())
+  organizationId  String
+  activityEventId String
+  authorId        String
+  body            String    @db.Text
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+
+  activityEvent ActivityEvent @relation(fields: [activityEventId], references: [id])
+
+  @@index([activityEventId, createdAt])
+}
+
+model Reaction {
+  id              String   @id @default(cuid())
+  organizationId  String
+  activityEventId String
+  userId          String
+  code            String // e.g. "thumbs_up", "heart", "clap"
+  createdAt       DateTime @default(now())
+
+  activityEvent ActivityEvent @relation(fields: [activityEventId], references: [id])
+
+  @@unique([activityEventId, userId, code])
+}
+
+model RecognitionType {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  label          String
+  emoji          String
+  isEnabled      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  recognitions Recognition[]
+
+  @@unique([organizationId, key])
+}
+
+model Recognition {
+  id              String    @id @default(cuid())
+  organizationId  String
+  recipientUserId String
+  giverUserId     String
+  typeId          String
+  note            String?   @db.Text
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+
+  type RecognitionType @relation(fields: [typeId], references: [id])
+
+  @@index([organizationId, recipientUserId, createdAt])
+}
+
+// ───────────────────────────── Field work ─────────────────────────────────────
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  organizationId   String
+  opportunityId    String
+  stageId          String
+  kind             String            @default("inspection")
+  startsAt         DateTime
+  endsAt           DateTime?
+  status           AppointmentStatus @default(SCHEDULED)
+  assigneeUserId   String?
+  externalPersonId String?
+  notes            String?           @db.Text
+  createdById      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  opportunity    Opportunity     @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  externalPerson ExternalPerson? @relation(fields: [externalPersonId], references: [id])
+
+  @@index([organizationId, startsAt])
+  @@index([opportunityId])
+}
+
+// Inspectors / crews / subcontractors. Recorded people, never application users by default.
+model ExternalPerson {
+  id             String   @id @default(cuid())
+  organizationId String
+  displayName    String
+  companyName    String?
+  phone          String?
+  email          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  participants OpportunityParticipant[]
+  appointments Appointment[]
+
+  @@index([organizationId, displayName])
+}
+
+model OpportunityParticipant {
+  id               String    @id @default(cuid())
+  organizationId   String
+  opportunityId    String
+  roleKey          String // inspector, crew, subcontractor ...
+  stageId          String?
+  memberUserId     String?
+  externalPersonId String?
+  createdAt        DateTime  @default(now())
+  removedAt        DateTime?
+
+  opportunity    Opportunity     @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  externalPerson ExternalPerson? @relation(fields: [externalPersonId], references: [id])
+
+  @@index([opportunityId, roleKey])
+}
+
+// ───────────────────────────── Files ──────────────────────────────────────────
+
+model Attachment {
+  id             String    @id @default(cuid())
+  organizationId String
+  storageKey     String    @unique
+  fileName       String
+  mimeType       String
+  byteLength     Int
+  sha256         String
+  uploadedById   String?
+  uploadedAt     DateTime  @default(now())
+  deletedAt      DateTime?
+
+  links AttachmentLink[]
+
+  @@index([organizationId, uploadedAt])
+}
+
+// One stored file, many references (job + stage + field + activity). Never duplicate binaries.
+model AttachmentLink {
+  id              String   @id @default(cuid())
+  organizationId  String
+  attachmentId    String
+  opportunityId   String?
+  contactId       String?
+  stageId         String?
+  fieldId         String?
+  activityEventId String?
+  createdAt       DateTime @default(now())
+
+  attachment Attachment @relation(fields: [attachmentId], references: [id])
+
+  @@index([opportunityId, stageId])
+  @@index([activityEventId])
+  @@index([organizationId, contactId])
+}
+
+// ───────────────────────────── Money references (manual, unverified) ─────────
+
+enum ValueProvenance {
+  MANUAL // typed by a person; unverified
+  PROVIDER // confirmed by a connected provider (future)
+}
+
+enum ExternalLinkKind {
+  INVOICE
+  PAYMENT
+  DEPOSIT
+  ESTIMATE
+  OTHER
+}
+
+model ExternalRecordLink {
+  id               String           @id @default(cuid())
+  organizationId   String
+  opportunityId    String
+  kind             ExternalLinkKind
+  label            String
+  url              String?          @db.VarChar(2048)
+  amountCents      Int?
+  statusLabel      String? // manually entered: "Sent", "Paid", "Overdue" ...
+  provenance       ValueProvenance  @default(MANUAL)
+  statusRecordedAt DateTime?
+  recordedById     String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([opportunityId])
+}
+
+// ───────────────────────────── Intake & provenance ────────────────────────────
+
+enum SourceKind {
+  MANUAL
+  CSV
+  FORM
+  API
+}
+
+enum DedupeStatus {
+  PENDING_REVIEW // possible match; a person must decide
+  NEW_CONTACT // no match; new contact created
+  LINKED_EXISTING // linked to an existing contact (auto exact or confirmed)
+  REJECTED // spam/test/declined
+}
+
+model Source {
+  id             String     @id @default(cuid())
+  organizationId String
+  kind           SourceKind
+  displayName    String
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+
+  records SourceRecord[]
+
+  @@unique([organizationId, kind, displayName])
+}
+
+// Immutable original submission / row. Raw payload is never edited.
+model SourceRecord {
+  id                   String               @id @default(cuid())
+  organizationId       String
+  sourceId             String
+  entityKind           String               @default("lead")
+  externalId           String
+  importRunId          String?
+  rawPayload           Json
+  contentHash          String
+  receivedAt           DateTime             @default(now()) // Riverly ingest time
+  providerTimestamp    DateTime? // when the provider/file says the lead arrived
+  providerTimestampVia TimestampProvenance?
+  dedupeStatus         DedupeStatus
+  matchCandidateIds    Json? // contact IDs proposed as possible matches
+  canonicalContactId   String?
+  reviewedById         String?
+  reviewedAt           DateTime?
+  createdAt            DateTime             @default(now())
+
+  source       Source              @relation(fields: [sourceId], references: [id])
+  importRun    ImportRun?          @relation(fields: [importRunId], references: [id])
+  opportunity  Opportunity?
+  contactLinks ContactSourceLink[]
+
+  @@unique([organizationId, sourceId, entityKind, externalId])
+  @@index([organizationId, dedupeStatus])
+  @@index([organizationId, receivedAt])
+}
+
+model ContactSourceLink {
+  id             String   @id @default(cuid())
+  organizationId String
+  contactId      String
+  sourceRecordId String
+  matchedBy      String // created | email | phone | manual
+  confirmedById  String?
+  createdAt      DateTime @default(now())
+
+  contact      Contact      @relation(fields: [contactId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  sourceRecord SourceRecord @relation(fields: [sourceRecordId], references: [id])
+
+  @@unique([contactId, sourceRecordId])
+}
+
+enum ImportState {
+  RUNNING
+  SUCCEEDED
+  PARTIALLY_COMPLETED
+  FAILED
+}
+
+model ImportRun {
+  id                String      @id @default(cuid())
+  organizationId    String
+  sourceId          String
+  fileName          String
+  state             ImportState
+  columnMapping     Json
+  rowsSeen          Int         @default(0)
+  created           Int         @default(0)
+  linked            Int         @default(0)
+  duplicatesFlagged Int         @default(0)
+  errors            Int         @default(0)
+  createdById       String
+  startedAt         DateTime    @default(now())
+  finishedAt        DateTime?
+
+  records SourceRecord[]
+  issues  ImportIssue[]
+
+  @@index([organizationId, startedAt])
+}
+
+model ImportIssue {
+  id          String   @id @default(cuid())
+  importRunId String
+  rowNumber   Int
+  message     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  importRun ImportRun @relation(fields: [importRunId], references: [id])
+
+  @@index([importRunId])
+}
+
+model LeadForm {
+  id             String   @id @default(cuid())
+  organizationId String
+  sourceId       String
+  publicToken    String   @unique
+  label          String
+  headline       String?
+  successMessage String?  @db.Text
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// ───────────────────────────── Email ──────────────────────────────────────────
+
+enum EmailProvider {
+  DEV_LOG // development transport: logs, simulates provider events; never leaves the machine
+  RESEND
+}
+
+enum SenderVerification {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+model SenderIdentity {
+  id                   String             @id @default(cuid())
+  organizationId       String
+  provider             EmailProvider
+  fromName             String
+  fromEmail            String
+  replyTo              String?
+  // AES-256-GCM ciphertext of a company-owned provider API key. Never returned by the API.
+  credentialCiphertext String?            @db.Text
+  verification         SenderVerification @default(UNVERIFIED)
+  verifiedAt           DateTime?
+  verificationDetail   String?            @db.Text
+  isDefault            Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([organizationId])
+}
+
+model EmailTemplate {
+  id              String   @id @default(cuid())
+  organizationId  String
+  stableKey       String // welcome, follow_up, review_request ...
+  label           String
+  stageId         String? // suggested stage; never auto-sends
+  subjectTemplate String   @db.Text
+  bodyTemplate    String   @db.Text
+  isEnabled       Boolean  @default(true)
+  version         Int      @default(1)
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, stableKey])
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT // provider accepted
+  DELIVERED // provider reports mailbox delivery
+  BOUNCED
+  FAILED
+}
+
+// Authoritative outbound record + outbox row. Content is frozen at queue time.
+model OutboundMessage {
+  id                String        @id @default(cuid())
+  organizationId    String
+  contactId         String?
+  opportunityId     String?
+  stageId           String?
+  templateId        String?
+  templateKey       String?
+  templateVersion   Int?
+  senderIdentityId  String
+  provider          EmailProvider
+  fromSnapshot      String
+  replyToSnapshot   String?
+  toEmail           String
+  toName            String?
+  subject           String        @db.Text
+  bodyText          String        @db.Text
+  idempotencyKey    String
+  status            MessageStatus @default(QUEUED)
+  providerMessageId String?       @unique
+  attempts          Int           @default(0)
+  nextAttemptAt     DateTime      @default(now())
+  lockedUntil       DateTime?
+  lastError         String?       @db.Text
+  requestedById     String
+  reviewRequestId   String?
+  queuedAt          DateTime      @default(now())
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  updatedAt         DateTime      @updatedAt
+
+  deliveryAttempts DeliveryAttempt[]
+  providerEvents   EmailProviderEvent[]
+  reviewRequest    ReviewRequest?       @relation(fields: [reviewRequestId], references: [id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, opportunityId, queuedAt])
+  @@index([organizationId, contactId, queuedAt])
+}
+
+model DeliveryAttempt {
+  id            String   @id @default(cuid())
+  messageId     String
+  attemptNumber Int
+  outcome       String // accepted | retryable_error | permanent_error
+  errorCode     String?
+  errorSummary  String?  @db.Text
+  attemptedAt   DateTime @default(now())
+
+  message OutboundMessage @relation(fields: [messageId], references: [id])
+
+  @@unique([messageId, attemptNumber])
+}
+
+// Provider webhooks, de-duplicated by provider event id.
+model EmailProviderEvent {
+  id              String        @id @default(cuid())
+  provider        EmailProvider
+  providerEventId String
+  messageId       String?
+  type            String
+  occurredAt      DateTime
+  payload         Json
+  receivedAt      DateTime      @default(now())
+
+  message OutboundMessage? @relation(fields: [messageId], references: [id])
+
+  @@unique([provider, providerEventId])
+}
+
+enum ReviewStatus {
+  UNKNOWN // a request was sent; we cannot know if a review exists
+  CONFIRMED // a person confirmed a review was posted
+}
+
+model ReviewRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  opportunityId  String
+  contactId      String
+  destinationUrl String       @db.VarChar(2048)
+  reviewStatus   ReviewStatus @default(UNKNOWN)
+  createdById    String
+  createdAt      DateTime     @default(now())
+
+  opportunity Opportunity       @relation(fields: [opportunityId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  messages    OutboundMessage[]
+
+  @@index([opportunityId])
+}
+
+// ───────────────────────────── Operations ─────────────────────────────────────
+
+enum WorkerRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIALLY_COMPLETED
+}
+
+// Technical execution log. NOT an Activity item; admin-only diagnostics.
+model WorkerRun {
+  id             String          @id @default(cuid())
+  organizationId String?
+  kind           String
+  status         WorkerRunStatus
+  detail         Json?
+  error          String?         @db.Text
+  startedAt      DateTime        @default(now())
+  finishedAt     DateTime?
+
+  @@index([kind, startedAt])
+}
+
+// Fixed-window rate limiting for public endpoints (form submissions, login).
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  windowEnd DateTime
+}

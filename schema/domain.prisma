@@ -1,0 +1,259 @@
+// REVIEW DRAFT — Prisma (PostgreSQL); illustrative and not yet migrated.
+// Published workflow definitions/options are stored as versioned validated JSON.
+// Stage IDs in Opportunity/Activity must be validated against the opportunity's workflowVersion.
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum OrgRole { OWNER ADMIN MANAGER SALES MEMBER }
+enum OpportunityStatus { OPEN WON LOST ON_HOLD CANCELED }
+enum ActivityKind { NOTE CONTACT_ATTEMPT EMAIL SMS MEETING APPOINTMENT FILE_UPDATE STATUS_CHANGE ASSIGNMENT OTHER }
+enum SourceMode { MANUAL IMPORT FORM API INTEGRATION }
+enum ValueProvenance { MANUAL EXTERNAL }
+
+model Organization {
+  id String @id @default(cuid())
+  name String
+  memberships Membership[]
+  contacts Contact[]
+  externalPeople ExternalPerson[]
+  formDefinitions LeadFormDefinition[]
+  opportunities Opportunity[]
+  workflows WorkflowVersion[]
+  resources Resource[]
+  createdAt DateTime @default(now())
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  displayName String
+  memberships Membership[]
+  assignedOpportunities Opportunity[] @relation("OpportunityOwner")
+  activities ActivityEvent[]
+}
+model Membership {
+  organizationId String
+  userId String
+  role OrgRole
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  @@id([organizationId, userId])
+}
+model Contact {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  name String
+  email String?
+  emailNormalized String?
+  phone String?
+  phoneNormalized String?
+  notes String?
+  opportunities Opportunity[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([organizationId, emailNormalized])
+  @@index([organizationId, phoneNormalized])
+}
+model WorkflowVersion {
+  id String @id @default(cuid())
+  organizationId String?
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  templateKey String
+  version Int
+  // shape validated by app contracts, see roofing-workflow.json
+  definition Json
+  publishedAt DateTime @default(now())
+  opportunities Opportunity[]
+  @@unique([organizationId, templateKey, version])
+}
+model Opportunity {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contactId String
+  contact Contact @relation(fields: [contactId], references: [id])
+  workflowVersionId String
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id])
+  stageId String  // stable stage key
+  status OpportunityStatus @default(OPEN)
+  ownerId String?
+  owner User? @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  service String?
+  propertyAddress String?
+  inquiry String?
+  leadSource String?
+  urgency String?
+  estimatedValueCents Int?
+  contractValueCents Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fieldValues OpportunityFieldValue[]
+  activities ActivityEvent[]
+  stageTransitions StageTransition[]
+  submissions LeadSubmission[]
+  appointments Appointment[]
+  attachmentLinks AttachmentLink[]
+  participants OpportunityParticipant[]
+  stageSummaries StageSummary[]
+  externalLinks ExternalRecordLink[]
+  @@index([organizationId, stageId, status])
+  @@index([organizationId, ownerId, updatedAt])
+}
+model OpportunityFieldValue {
+  opportunityId String
+  fieldId String
+  value Json
+  schemaVersionId String // field definition version for interpretation
+  updatedAt DateTime @updatedAt
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  @@id([opportunityId, fieldId])
+}
+model ActivityEvent {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  stageId String
+  workflowVersionId String // snapshot context at event time
+  kind ActivityKind
+  typeId String?
+  outcomeId String?
+  methodId String?
+  details Json?
+  note String?
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id])
+  occurredAt DateTime @default(now())
+  recordedAt DateTime @default(now())
+  idempotencyKey String?
+  revisionOfId String?
+  @@index([opportunityId, stageId, occurredAt])
+  @@unique([opportunityId, idempotencyKey])
+}
+model StageTransition {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  workflowVersionId String // version at transition time
+  fromStageId String
+  toStageId String
+  actorId String?
+  reason String?
+  occurredAt DateTime @default(now())
+  idempotencyKey String?
+  @@index([opportunityId, occurredAt])
+  @@unique([opportunityId, idempotencyKey])
+}
+model LeadSubmission {
+  id String @id @default(cuid())
+  organizationId String
+  opportunityId String?
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+  channel SourceMode
+  provider String?
+  externalId String?
+  payload Json
+  receivedAt DateTime @default(now())
+  dedupeStatus String @default("PENDING")
+  @@index([organizationId, receivedAt])
+  @@unique([organizationId, provider, externalId])
+}
+model Appointment {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  stageId String
+  startsAt DateTime
+  endsAt DateTime?
+  inspectorName String?
+  inspectorMemberId String?
+  status String @default("SCHEDULED")
+  notes String?
+}
+model Attachment {
+  id String @id @default(cuid())
+  organizationId String
+  storageKey String
+  fileName String
+  mimeType String
+  byteLength Int
+  uploadedAt DateTime @default(now())
+  links AttachmentLink[]
+  @@index([organizationId, uploadedAt])
+}
+model AttachmentLink {
+  id String @id @default(cuid())
+  attachmentId String
+  attachment Attachment @relation(fields: [attachmentId], references: [id])
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  stageId String?
+  activityId String?
+  @@index([opportunityId, stageId])
+}
+model Resource {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  label String
+  url String
+  stageIds Json // list of stable stage IDs
+  active Boolean @default(true)
+}
+model ExternalRecordLink {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  provider String
+  externalType String
+  externalId String
+  externalUrl String?
+  displayStatus String?
+  source ValueProvenance @default(EXTERNAL)
+  lastSyncedAt DateTime?
+  @@unique([opportunityId, provider, externalType, externalId])
+}
+
+// External inspectors/contractors are contactable participants, NOT CRM users by default.
+model ExternalPerson {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  displayName String
+  companyName String?
+  phone String?
+  email String?
+  participants OpportunityParticipant[]
+  @@index([organizationId, displayName])
+}
+model OpportunityParticipant {
+  id String @id @default(cuid())
+  opportunityId String
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  externalPersonId String?
+  externalPerson ExternalPerson? @relation(fields: [externalPersonId], references: [id])
+  memberUserId String? // resolved/authorized via Membership in service layer
+  roleKey String // inspector, crew_lead, subcontractor, etc.
+  stageId String?
+  @@index([opportunityId, roleKey])
+}
+// Read model only: derived from events and fact values; rebuildable, not authoritative.
+model StageSummary {
+  opportunityId String
+  stageId String
+  workflowVersionId String
+  summary Json
+  projectedThrough DateTime?
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  @@id([opportunityId, stageId])
+}
+// Public intake form definitions owned by a business; public token must be random and revocable.
+model LeadFormDefinition {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  publicToken String @unique
+  label String
+  fieldConfig Json
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+}

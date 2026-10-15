@@ -1,0 +1,30 @@
+# Dependencies & build output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Environment & secrets — only the template and the dummy test config are committed
+.env
+.env.*
+!.env.example
+!.env.test
+*.pem
+*.key
+*.p12
+
+# Local runtime data: MySQL data dir, uploads, dev email outbox
+.data/
+
+# Test artifacts
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+node_modules/.cache/
+
+# Logs & OS/editor files
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

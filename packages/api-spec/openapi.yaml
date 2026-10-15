@@ -1,0 +1,3285 @@
+openapi: 3.1.0
+info:
+  title: Riverly API
+  version: 0.1.0
+  description: |
+    Roofing CRM API. Every private route is scoped to the organization selected in the
+    caller's session (never a client-supplied organization ID). Errors use
+    `{ error, code? }`. Lists use `{ data, meta: { hasMore, nextCursor } }`.
+
+servers:
+  - url: http://localhost:3001
+    description: Local dev
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: system
+  - name: auth
+  - name: organization
+  - name: team
+  - name: workflow
+  - name: contacts
+  - name: jobs
+  - name: activity
+  - name: fieldwork
+  - name: files
+  - name: intake
+  - name: email
+  - name: profiles
+  - name: manage
+  - name: public
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Session token via httpOnly `token` cookie (web) or Bearer header (native).
+
+  parameters:
+    Cursor:
+      in: query
+      name: cursor
+      schema: { type: string }
+      description: Opaque cursor returned by the previous page.
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    SearchQuery:
+      in: query
+      name: q
+      schema: { type: string, minLength: 1, maxLength: 200 }
+    IdPath:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    TokenPath:
+      in: path
+      name: token
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ─────────── common ───────────
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string }
+        details: {}
+    PaginatedMeta:
+      type: object
+      required: [hasMore, nextCursor]
+      properties:
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'] }
+    NullData:
+      type: object
+      required: [data]
+      properties:
+        data: { type: 'null' }
+    Role:
+      type: string
+      enum: [OWNER, ADMIN, MANAGER, MEMBER]
+    OpportunityStatus:
+      type: string
+      enum: [OPEN, WON, LOST, ON_HOLD, CANCELED]
+    Verification:
+      type: string
+      enum: [SELF_REPORTED, PROVIDER_VERIFIED, SYSTEM_RECORDED]
+    MessageStatus:
+      type: string
+      enum: [QUEUED, SENDING, SENT, DELIVERED, BOUNCED, FAILED]
+    IdempotencyKey:
+      type: string
+      minLength: 8
+      maxLength: 64
+      description: Client-generated key; retries with the same key return the original result.
+    UserSummary:
+      type: object
+      required: [id, displayName, slug, avatarUrl, title]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        slug: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+    RecordRef:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string }
+        label: { type: string }
+
+    # ─────────── system ───────────
+    Health:
+      type: object
+      required: [status, database]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        database: { type: string, enum: [ok, unavailable] }
+        version: { type: string }
+
+    # ─────────── auth / organization / team ───────────
+    LoginInput:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 191 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+    CreateCompanyInput:
+      type: object
+      required: [companyName, displayName, email, password]
+      additionalProperties: false
+      properties:
+        companyName: { type: string, minLength: 2, maxLength: 120 }
+        timezone: { type: string, maxLength: 64 }
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        email: { type: string, format: email, maxLength: 191 }
+        password: { type: string, minLength: 10, maxLength: 200 }
+    MembershipSummary:
+      type: object
+      required: [organizationId, organizationName, role]
+      properties:
+        organizationId: { type: string }
+        organizationName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    Me:
+      type: object
+      required: [id, email, displayName, slug, avatarUrl, title, bio, memberships, organization, role, platformRoles]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        displayName: { type: string }
+        slug: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        bio: { type: [string, 'null'] }
+        memberships:
+          type: array
+          items: { $ref: '#/components/schemas/MembershipSummary' }
+        organization:
+          oneOf:
+            - $ref: '#/components/schemas/Organization'
+            - type: 'null'
+        role:
+          oneOf:
+            - $ref: '#/components/schemas/Role'
+            - type: 'null'
+        platformRoles:
+          type: array
+          items: { type: string }
+    MeResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Me' }
+    SwitchOrganizationInput:
+      type: object
+      required: [organizationId]
+      additionalProperties: false
+      properties:
+        organizationId: { type: string }
+    Organization:
+      type: object
+      required: [id, name, slug, timezone, logoUrl, reviewUrl]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        timezone: { type: string }
+        logoUrl: { type: [string, 'null'] }
+        reviewUrl: { type: [string, 'null'] }
+    UpdateOrganizationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        timezone: { type: string, maxLength: 64 }
+        logoUrl: { type: [string, 'null'], format: uri, maxLength: 1024 }
+        reviewUrl: { type: [string, 'null'], format: uri, maxLength: 1024 }
+    Member:
+      type: object
+      required: [userId, displayName, slug, email, avatarUrl, title, role, status, joinedAt]
+      properties:
+        userId: { type: string }
+        displayName: { type: string }
+        slug: { type: string }
+        email: { type: string }
+        avatarUrl: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [ACTIVE, DEACTIVATED] }
+        joinedAt: { type: string, format: date-time }
+    UpdateMemberInput:
+      type: object
+      additionalProperties: false
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [ACTIVE, DEACTIVATED] }
+    Invitation:
+      type: object
+      required: [id, email, role, expiresAt, createdAt, acceptedAt, revokedAt]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        acceptedAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        acceptUrl:
+          type: string
+          description: Only returned once, at creation.
+    CreateInvitationInput:
+      type: object
+      required: [email, role]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 191 }
+        role: { $ref: '#/components/schemas/Role' }
+    InvitationPreview:
+      type: object
+      required: [organizationName, email, role, expiresAt, hasAccount]
+      properties:
+        organizationName: { type: string }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        expiresAt: { type: string, format: date-time }
+        hasAccount: { type: boolean }
+    AcceptInvitationInput:
+      type: object
+      required: [password]
+      additionalProperties: false
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+
+    # ─────────── workflow ───────────
+    OptionDef:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        retired: { type: boolean }
+    FieldDef:
+      type: object
+      required: [id, label, type]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        type:
+          type: string
+          enum: [text, textarea, date, datetime, select, multi_select, boolean, money, member, url,
+                 contact_log, progress_log, appointment, participants, attachment, gallery, external_link, review_request]
+        binding: { type: string }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/OptionDef' }
+        editable: { type: boolean }
+        visible: { type: boolean }
+        retired: { type: boolean }
+        appointmentKind: { type: string }
+        participantRole: { type: string }
+        linkKind: { type: string, enum: [INVOICE, PAYMENT, DEPOSIT, ESTIMATE, OTHER] }
+        placeholder: { type: string }
+    StageDef:
+      type: object
+      required: [id, label, order, fieldIds]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        order: { type: integer }
+        retired: { type: boolean }
+        description: { type: string }
+        instructions: { type: string }
+        fieldIds:
+          type: array
+          items: { type: string }
+        primaryActionLabel: { type: string }
+        emailTemplateKeys:
+          type: array
+          items: { type: string }
+    WorkflowDefinition:
+      type: object
+      required: [templateKey, terminology, stages, fields, activity, contactCard]
+      properties:
+        templateKey: { type: string }
+        terminology:
+          type: object
+          required: [contact, opportunity, owner, activity]
+          properties:
+            contact: { type: string }
+            opportunity: { type: string }
+            owner: { type: string }
+            activity: { type: string }
+        stages:
+          type: array
+          items: { $ref: '#/components/schemas/StageDef' }
+        fields:
+          type: array
+          items: { $ref: '#/components/schemas/FieldDef' }
+        activity:
+          type: object
+          required: [methods, outcomes]
+          properties:
+            methods:
+              type: array
+              items: { $ref: '#/components/schemas/OptionDef' }
+            outcomes:
+              type: array
+              items: { $ref: '#/components/schemas/OptionDef' }
+        contactCard:
+          type: object
+          required: [actions, jobFieldIds]
+          properties:
+            actions:
+              type: array
+              items: { type: string, enum: [call, text, email, schedule] }
+            jobFieldIds:
+              type: array
+              items: { type: string }
+    Workflow:
+      type: object
+      required: [versionId, version, templateKey, publishedAt, definition, stageCounts]
+      properties:
+        versionId: { type: string }
+        version: { type: integer }
+        templateKey: { type: string }
+        publishedAt: { type: string, format: date-time }
+        definition: { $ref: '#/components/schemas/WorkflowDefinition' }
+        stageCounts:
+          type: array
+          items:
+            type: object
+            required: [stageId, openJobs]
+            properties:
+              stageId: { type: string }
+              openJobs: { type: integer }
+    PublishWorkflowInput:
+      type: object
+      required: [definition, baseVersionId]
+      additionalProperties: false
+      properties:
+        baseVersionId:
+          type: string
+          description: Version the admin edited; publishing fails if another admin published since.
+        definition: { $ref: '#/components/schemas/WorkflowDefinition' }
+        stageMappings:
+          type: array
+          description: Required for every retired stage that still has open jobs.
+          items:
+            type: object
+            required: [fromStageId, toStageId]
+            properties:
+              fromStageId: { type: string }
+              toStageId: { type: string }
+        changeNote: { type: string, maxLength: 500 }
+    Resource:
+      type: object
+      required: [id, label, url, description, stageIds, sortOrder, isActive]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        url: { type: string }
+        description: { type: [string, 'null'] }
+        stageIds:
+          type: array
+          items: { type: string }
+        sortOrder: { type: integer }
+        isActive: { type: boolean }
+    ResourceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        url: { type: string, format: uri, maxLength: 2048 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        stageIds:
+          type: array
+          items: { type: string }
+        sortOrder: { type: integer }
+        isActive: { type: boolean }
+
+    # ─────────── contacts & jobs ───────────
+    Contact:
+      type: object
+      required: [id, name, email, phone, addressLine, city, region, postalCode, notes, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        addressLine: { type: [string, 'null'] }
+        city: { type: [string, 'null'] }
+        region: { type: [string, 'null'] }
+        postalCode: { type: [string, 'null'] }
+        notes: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ContactListItem:
+      allOf:
+        - $ref: '#/components/schemas/Contact'
+        - type: object
+          required: [opportunities, sourceNames]
+          properties:
+            opportunities:
+              type: array
+              items: { $ref: '#/components/schemas/OpportunitySummary' }
+            sourceNames:
+              type: array
+              items: { type: string }
+    ContactSourceRef:
+      type: object
+      required: [sourceRecordId, sourceName, kind, receivedAt, providerTimestamp, matchedBy]
+      properties:
+        sourceRecordId: { type: string }
+        sourceName: { type: string }
+        kind: { type: string }
+        receivedAt: { type: string, format: date-time }
+        providerTimestamp: { type: [string, 'null'], format: date-time }
+        matchedBy: { type: string }
+    ContactDetail:
+      allOf:
+        - $ref: '#/components/schemas/Contact'
+        - type: object
+          required: [opportunities, sources, recentEmails]
+          properties:
+            opportunities:
+              type: array
+              items: { $ref: '#/components/schemas/OpportunitySummary' }
+            sources:
+              type: array
+              items: { $ref: '#/components/schemas/ContactSourceRef' }
+            recentEmails:
+              type: array
+              items: { $ref: '#/components/schemas/OutboundMessageSummary' }
+    ContactFields:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        email: { type: [string, 'null'], maxLength: 191 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        addressLine: { type: [string, 'null'], maxLength: 191 }
+        city: { type: [string, 'null'], maxLength: 120 }
+        region: { type: [string, 'null'], maxLength: 120 }
+        postalCode: { type: [string, 'null'], maxLength: 20 }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+    NewJobFields:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        propertyAddress: { type: [string, 'null'], maxLength: 191 }
+        inquiry: { type: [string, 'null'], maxLength: 5000 }
+        leadSourceOptionId: { type: [string, 'null'] }
+        urgencyOptionId: { type: [string, 'null'] }
+        ownerId: { type: [string, 'null'] }
+        leadReceivedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the lead actually arrived, if known (recorded as MANUAL provenance).
+    CreateContactInput:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        email: { type: [string, 'null'], maxLength: 191 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        addressLine: { type: [string, 'null'], maxLength: 191 }
+        city: { type: [string, 'null'], maxLength: 120 }
+        region: { type: [string, 'null'], maxLength: 120 }
+        postalCode: { type: [string, 'null'], maxLength: 20 }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        job: { $ref: '#/components/schemas/NewJobFields' }
+    ContactMatchInput:
+      type: object
+      additionalProperties: false
+      properties:
+        email: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+    ContactMatch:
+      type: object
+      required: [contact, matchedOn]
+      properties:
+        contact: { $ref: '#/components/schemas/Contact' }
+        matchedOn:
+          type: array
+          items: { type: string, enum: [email, phone, name] }
+    OpportunitySummary:
+      type: object
+      required: [id, contactId, contactName, title, stageId, status, owner, leadSourceOptionId, estimatedValueCents,
+                 contractValueCents, nextFollowUpAt, lastActivityAt, stageEnteredAt, leadReceivedAt, createdAt]
+      properties:
+        id: { type: string }
+        contactId: { type: string }
+        contactName: { type: string }
+        title: { type: string }
+        stageId: { type: string }
+        status: { $ref: '#/components/schemas/OpportunityStatus' }
+        owner:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        leadSourceOptionId: { type: [string, 'null'] }
+        estimatedValueCents: { type: [integer, 'null'] }
+        contractValueCents: { type: [integer, 'null'] }
+        nextFollowUpAt: { type: [string, 'null'], format: date-time }
+        lastActivityAt: { type: string, format: date-time }
+        stageEnteredAt: { type: string, format: date-time }
+        leadReceivedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    StageSummary:
+      type: object
+      required: [stageId, eventCount, attemptCount, lastEventAt, latestMethodId, latestOutcomeId]
+      description: Derived projection of the stage's activity; never a substitute for history.
+      properties:
+        stageId: { type: string }
+        eventCount: { type: integer }
+        attemptCount: { type: integer }
+        lastEventAt: { type: [string, 'null'], format: date-time }
+        latestMethodId: { type: [string, 'null'] }
+        latestOutcomeId: { type: [string, 'null'] }
+    StageTransition:
+      type: object
+      required: [id, kind, fromStageId, toStageId, fromStatus, toStatus, reason, actor, occurredAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [FORWARD, BACKWARD, ADMIN_MAPPING, STATUS] }
+        fromStageId: { type: [string, 'null'] }
+        toStageId: { type: string }
+        fromStatus:
+          oneOf:
+            - $ref: '#/components/schemas/OpportunityStatus'
+            - type: 'null'
+        toStatus:
+          oneOf:
+            - $ref: '#/components/schemas/OpportunityStatus'
+            - type: 'null'
+        reason: { type: [string, 'null'] }
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        occurredAt: { type: string, format: date-time }
+    OpportunityDetail:
+      allOf:
+        - $ref: '#/components/schemas/OpportunitySummary'
+        - type: object
+          required: [propertyAddress, inquiry, urgencyOptionId, statusReason, workflowVersionId, leadReceivedVia,
+                     contact, fieldValues, stageSummaries, transitions, appointments, participants, attachments,
+                     externalLinks, reviewRequests, source, otherJobs]
+          properties:
+            propertyAddress: { type: [string, 'null'] }
+            inquiry: { type: [string, 'null'] }
+            urgencyOptionId: { type: [string, 'null'] }
+            statusReason: { type: [string, 'null'] }
+            workflowVersionId: { type: string }
+            leadReceivedVia: { type: string, enum: [PROVIDER, SYSTEM, MANUAL, IMPORTED] }
+            contact: { $ref: '#/components/schemas/Contact' }
+            fieldValues:
+              type: object
+              additionalProperties: true
+              description: Custom (non-native) field values keyed by field ID.
+            stageSummaries:
+              type: array
+              items: { $ref: '#/components/schemas/StageSummary' }
+            transitions:
+              type: array
+              items: { $ref: '#/components/schemas/StageTransition' }
+            appointments:
+              type: array
+              items: { $ref: '#/components/schemas/Appointment' }
+            participants:
+              type: array
+              items: { $ref: '#/components/schemas/Participant' }
+            attachments:
+              type: array
+              items: { $ref: '#/components/schemas/AttachmentRef' }
+            externalLinks:
+              type: array
+              items: { $ref: '#/components/schemas/ExternalLink' }
+            reviewRequests:
+              type: array
+              items: { $ref: '#/components/schemas/ReviewRequest' }
+            source:
+              oneOf:
+                - $ref: '#/components/schemas/ContactSourceRef'
+                - type: 'null'
+            otherJobs:
+              type: array
+              items: { $ref: '#/components/schemas/OpportunitySummary' }
+    UpdateOpportunityInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        propertyAddress: { type: [string, 'null'], maxLength: 191 }
+        inquiry: { type: [string, 'null'], maxLength: 5000 }
+        leadSourceOptionId: { type: [string, 'null'] }
+        urgencyOptionId: { type: [string, 'null'] }
+        ownerId: { type: [string, 'null'] }
+        nextFollowUpAt: { type: [string, 'null'], format: date-time }
+        estimatedValueCents: { type: [integer, 'null'], minimum: 0 }
+        contractValueCents: { type: [integer, 'null'], minimum: 0 }
+    SetFieldValueInput:
+      type: object
+      required: [value]
+      additionalProperties: false
+      properties:
+        value: {}
+    TransitionInput:
+      type: object
+      required: [toStageId, idempotencyKey]
+      additionalProperties: false
+      properties:
+        toStageId: { type: string }
+        reason: { type: [string, 'null'], maxLength: 1000 }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+    SetStatusInput:
+      type: object
+      required: [status, idempotencyKey]
+      additionalProperties: false
+      properties:
+        status: { $ref: '#/components/schemas/OpportunityStatus' }
+        reason: { type: [string, 'null'], maxLength: 1000 }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+
+    # ─────────── activity ───────────
+    AttachmentRef:
+      type: object
+      required: [id, attachmentId, fileName, mimeType, byteLength, stageId, fieldId, url, uploadedAt]
+      properties:
+        id: { type: string, description: AttachmentLink id }
+        attachmentId: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        byteLength: { type: integer }
+        stageId: { type: [string, 'null'] }
+        fieldId: { type: [string, 'null'] }
+        url: { type: string, description: Short-lived signed URL }
+        uploadedAt: { type: string, format: date-time }
+    ReactionSummary:
+      type: object
+      required: [code, count, mine]
+      properties:
+        code: { type: string }
+        count: { type: integer }
+        mine: { type: boolean }
+    ActivityItem:
+      type: object
+      required: [id, type, category, actorType, actor, actorLabel, contact, opportunity, stageId, methodId, outcomeId,
+                 note, payload, verification, occurredAt, recordedAt, revisionOfId, post, message, recognition,
+                 attachments, reactions, commentCount]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        category: { type: string, enum: [WORK, MESSAGE, TEAM, SYSTEM] }
+        actorType: { type: string, enum: [USER, SYSTEM, INTEGRATION] }
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        actorLabel: { type: [string, 'null'] }
+        contact:
+          oneOf:
+            - $ref: '#/components/schemas/RecordRef'
+            - type: 'null'
+        opportunity:
+          oneOf:
+            - $ref: '#/components/schemas/RecordRef'
+            - type: 'null'
+        stageId: { type: [string, 'null'] }
+        methodId: { type: [string, 'null'] }
+        outcomeId: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+        payload:
+          type: [object, 'null']
+          additionalProperties: true
+        verification: { $ref: '#/components/schemas/Verification' }
+        occurredAt: { type: string, format: date-time }
+        recordedAt: { type: string, format: date-time }
+        revisionOfId: { type: [string, 'null'] }
+        post:
+          oneOf:
+            - type: object
+              required: [id, body, deleted]
+              properties:
+                id: { type: string }
+                body: { type: string }
+                deleted: { type: boolean }
+            - type: 'null'
+        message:
+          oneOf:
+            - $ref: '#/components/schemas/OutboundMessageSummary'
+            - type: 'null'
+        recognition:
+          oneOf:
+            - $ref: '#/components/schemas/Recognition'
+            - type: 'null'
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/AttachmentRef' }
+        reactions:
+          type: array
+          items: { $ref: '#/components/schemas/ReactionSummary' }
+        commentCount: { type: integer }
+    ActivityPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityItem' }
+        meta: { $ref: '#/components/schemas/PaginatedMeta' }
+    LogActivityInput:
+      type: object
+      required: [kind, idempotencyKey]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [note, contact_attempt, progress]
+        stageId:
+          type: string
+          description: Stage the user was viewing; defaults to the job's current stage.
+        methodId: { type: [string, 'null'] }
+        outcomeId: { type: [string, 'null'] }
+        note: { type: [string, 'null'], maxLength: 5000 }
+        occurredAt:
+          type: [string, 'null']
+          format: date-time
+          description: When it happened, if earlier than now (back-dated entries keep recordedAt = now).
+        nextFollowUpAt: { type: [string, 'null'], format: date-time }
+        attachmentIds:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+    CorrectActivityInput:
+      type: object
+      required: [note, idempotencyKey]
+      additionalProperties: false
+      properties:
+        note: { type: string, minLength: 1, maxLength: 5000, description: What was wrong and the corrected facts. }
+        methodId: { type: [string, 'null'] }
+        outcomeId: { type: [string, 'null'] }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+    CreatePostInput:
+      type: object
+      required: [body, idempotencyKey]
+      additionalProperties: false
+      properties:
+        body: { type: string, minLength: 1, maxLength: 5000 }
+        opportunityId: { type: [string, 'null'] }
+        attachmentIds:
+          type: array
+          maxItems: 12
+          items: { type: string }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+    Comment:
+      type: object
+      required: [id, author, body, createdAt]
+      properties:
+        id: { type: string }
+        author: { $ref: '#/components/schemas/UserSummary' }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+    CreateCommentInput:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        body: { type: string, minLength: 1, maxLength: 2000 }
+    ReactionInput:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code: { type: string, enum: [thumbs_up, heart, clap, fire] }
+
+    # ─────────── fieldwork / files / money ───────────
+    ExternalPerson:
+      type: object
+      required: [id, displayName, companyName, phone, email]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        companyName: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+    ExternalPersonInput:
+      type: object
+      required: [displayName]
+      additionalProperties: false
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        companyName: { type: [string, 'null'], maxLength: 160 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        email: { type: [string, 'null'], maxLength: 191 }
+    Appointment:
+      type: object
+      required: [id, opportunityId, stageId, kind, startsAt, endsAt, status, assignee, externalPerson, notes]
+      properties:
+        id: { type: string }
+        opportunityId: { type: string }
+        stageId: { type: string }
+        kind: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [SCHEDULED, COMPLETED, CANCELED, NO_SHOW] }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        externalPerson:
+          oneOf:
+            - $ref: '#/components/schemas/ExternalPerson'
+            - type: 'null'
+        notes: { type: [string, 'null'] }
+    CreateAppointmentInput:
+      type: object
+      required: [stageId, startsAt]
+      additionalProperties: false
+      properties:
+        stageId: { type: string }
+        kind: { type: string, maxLength: 40 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        assigneeUserId: { type: [string, 'null'] }
+        externalPersonId: { type: [string, 'null'] }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+    UpdateAppointmentInput:
+      type: object
+      additionalProperties: false
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [SCHEDULED, COMPLETED, CANCELED, NO_SHOW] }
+        assigneeUserId: { type: [string, 'null'] }
+        externalPersonId: { type: [string, 'null'] }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+        reason: { type: [string, 'null'], maxLength: 500 }
+    Participant:
+      type: object
+      required: [id, roleKey, stageId, member, externalPerson]
+      properties:
+        id: { type: string }
+        roleKey: { type: string }
+        stageId: { type: [string, 'null'] }
+        member:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        externalPerson:
+          oneOf:
+            - $ref: '#/components/schemas/ExternalPerson'
+            - type: 'null'
+    AddParticipantInput:
+      type: object
+      required: [roleKey]
+      additionalProperties: false
+      properties:
+        roleKey: { type: string, minLength: 1, maxLength: 40 }
+        stageId: { type: [string, 'null'] }
+        memberUserId: { type: [string, 'null'] }
+        externalPersonId: { type: [string, 'null'] }
+    ExternalLink:
+      type: object
+      required: [id, kind, label, url, amountCents, statusLabel, provenance, statusRecordedAt, createdAt]
+      description: Reference to a record in the company's own provider. Manual values are unverified.
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [INVOICE, PAYMENT, DEPOSIT, ESTIMATE, OTHER] }
+        label: { type: string }
+        url: { type: [string, 'null'] }
+        amountCents: { type: [integer, 'null'] }
+        statusLabel: { type: [string, 'null'] }
+        provenance: { type: string, enum: [MANUAL, PROVIDER] }
+        statusRecordedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    ExternalLinkInput:
+      type: object
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [INVOICE, PAYMENT, DEPOSIT, ESTIMATE, OTHER] }
+        label: { type: string, minLength: 1, maxLength: 120 }
+        url: { type: [string, 'null'], format: uri, maxLength: 2048 }
+        amountCents: { type: [integer, 'null'], minimum: 0 }
+        statusLabel: { type: [string, 'null'], maxLength: 60 }
+    ReviewRequest:
+      type: object
+      required: [id, destinationUrl, reviewStatus, createdAt, latestMessage]
+      description: A request is not evidence that a review exists; reviewStatus stays UNKNOWN until a person confirms.
+      properties:
+        id: { type: string }
+        destinationUrl: { type: string }
+        reviewStatus: { type: string, enum: [UNKNOWN, CONFIRMED] }
+        createdAt: { type: string, format: date-time }
+        latestMessage:
+          oneOf:
+            - $ref: '#/components/schemas/OutboundMessageSummary'
+            - type: 'null'
+
+    # ─────────── intake ───────────
+    Source:
+      type: object
+      required: [id, kind, displayName, isActive, contactCount]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [MANUAL, CSV, FORM, API] }
+        displayName: { type: string }
+        isActive: { type: boolean }
+        contactCount: { type: integer }
+    CsvInput:
+      type: object
+      required: [fileName, csv]
+      additionalProperties: false
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 191 }
+        csv: { type: string, minLength: 1, maxLength: 5000000 }
+        mapping:
+          type: object
+          description: Riverly field → CSV header.
+          additionalProperties: { type: string }
+        sourceName: { type: string, maxLength: 120 }
+        createJobs:
+          type: boolean
+          description: Create a New Lead job for each newly created contact.
+        defaultJobTitle: { type: string, maxLength: 160 }
+    ImportPreview:
+      type: object
+      required: [headers, sampleRows, suggestedMapping, rowCount, targetFields]
+      properties:
+        headers:
+          type: array
+          items: { type: string }
+        sampleRows:
+          type: array
+          items:
+            type: array
+            items: { type: string }
+        suggestedMapping:
+          type: object
+          additionalProperties: { type: string }
+        rowCount: { type: integer }
+        targetFields:
+          type: array
+          items: { type: string }
+    ImportRun:
+      type: object
+      required: [id, fileName, sourceName, state, rowsSeen, created, linked, duplicatesFlagged, errors, startedAt, finishedAt, issues]
+      properties:
+        id: { type: string }
+        fileName: { type: string }
+        sourceName: { type: string }
+        state: { type: string, enum: [RUNNING, SUCCEEDED, PARTIALLY_COMPLETED, FAILED] }
+        rowsSeen: { type: integer }
+        created: { type: integer }
+        linked: { type: integer }
+        duplicatesFlagged: { type: integer }
+        errors: { type: integer }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        issues:
+          type: array
+          items:
+            type: object
+            required: [rowNumber, message]
+            properties:
+              rowNumber: { type: integer }
+              message: { type: string }
+    ReviewItem:
+      type: object
+      required: [sourceRecordId, sourceName, sourceKind, receivedAt, rawPayload, proposed, candidates]
+      properties:
+        sourceRecordId: { type: string }
+        sourceName: { type: string }
+        sourceKind: { type: string }
+        receivedAt: { type: string, format: date-time }
+        rawPayload:
+          type: object
+          additionalProperties: true
+        proposed:
+          type: object
+          required: [name, email, phone]
+          properties:
+            name: { type: string }
+            email: { type: [string, 'null'] }
+            phone: { type: [string, 'null'] }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/ContactMatch' }
+    ResolveReviewInput:
+      type: object
+      required: [action]
+      additionalProperties: false
+      properties:
+        action: { type: string, enum: [link, create, reject] }
+        contactId: { type: [string, 'null'] }
+        createJob: { type: boolean }
+    ResolveReviewResult:
+      type: object
+      required: [contactId, opportunityId]
+      properties:
+        contactId: { type: [string, 'null'] }
+        opportunityId: { type: [string, 'null'] }
+    LeadForm:
+      type: object
+      required: [id, label, headline, successMessage, isActive, publicToken, sourceId, createdAt]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        headline: { type: [string, 'null'] }
+        successMessage: { type: [string, 'null'] }
+        isActive: { type: boolean }
+        publicToken: { type: string }
+        sourceId: { type: string }
+        createdAt: { type: string, format: date-time }
+    LeadFormInput:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        headline: { type: [string, 'null'], maxLength: 160 }
+        successMessage: { type: [string, 'null'], maxLength: 500 }
+        isActive: { type: boolean }
+    PublicForm:
+      type: object
+      required: [companyName, headline, successMessage]
+      properties:
+        companyName: { type: string }
+        headline: { type: [string, 'null'] }
+        successMessage: { type: [string, 'null'] }
+    PublicSubmissionInput:
+      type: object
+      required: [name, startedAt]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        email: { type: [string, 'null'], maxLength: 191 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        address: { type: [string, 'null'], maxLength: 191 }
+        service: { type: [string, 'null'], maxLength: 160 }
+        message: { type: [string, 'null'], maxLength: 5000 }
+        consent: { type: boolean }
+        website:
+          type: [string, 'null']
+          maxLength: 200
+          description: Honeypot — must be empty.
+        startedAt:
+          type: integer
+          description: Epoch ms when the form was rendered (minimum fill-time check).
+
+    # ─────────── email ───────────
+    EmailTemplate:
+      type: object
+      required: [id, stableKey, label, stageId, subjectTemplate, bodyTemplate, isEnabled, version, updatedAt]
+      properties:
+        id: { type: string }
+        stableKey: { type: string }
+        label: { type: string }
+        stageId: { type: [string, 'null'] }
+        subjectTemplate: { type: string }
+        bodyTemplate: { type: string }
+        isEnabled: { type: boolean }
+        version: { type: integer }
+        updatedAt: { type: string, format: date-time }
+    UpdateEmailTemplateInput:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        stageId: { type: [string, 'null'] }
+        subjectTemplate: { type: string, minLength: 1, maxLength: 300 }
+        bodyTemplate: { type: string, minLength: 1, maxLength: 20000 }
+        isEnabled: { type: boolean }
+    RenderEmailInput:
+      type: object
+      required: [templateId, contactId]
+      additionalProperties: false
+      properties:
+        templateId: { type: string }
+        contactId: { type: string }
+        opportunityId: { type: [string, 'null'] }
+    OutboundMessageSummary:
+      type: object
+      required: [id, subject, toEmail, toName, status, templateKey, provider, queuedAt, sentAt, deliveredAt, failedAt,
+                 lastError, requestedBy, opportunityId, reviewRequestId]
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        toEmail: { type: string }
+        toName: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/MessageStatus' }
+        templateKey: { type: [string, 'null'] }
+        provider: { type: string, enum: [DEV_LOG, RESEND] }
+        queuedAt: { type: string, format: date-time }
+        sentAt: { type: [string, 'null'], format: date-time }
+        deliveredAt: { type: [string, 'null'], format: date-time }
+        failedAt: { type: [string, 'null'], format: date-time }
+        lastError: { type: [string, 'null'] }
+        requestedBy:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        opportunityId: { type: [string, 'null'] }
+        reviewRequestId: { type: [string, 'null'] }
+    OutboundMessage:
+      allOf:
+        - $ref: '#/components/schemas/OutboundMessageSummary'
+        - type: object
+          required: [fromSnapshot, bodyText, attempts]
+          properties:
+            fromSnapshot: { type: string }
+            bodyText: { type: string }
+            attempts:
+              type: array
+              items:
+                type: object
+                required: [attemptNumber, outcome, errorSummary, attemptedAt]
+                properties:
+                  attemptNumber: { type: integer }
+                  outcome: { type: string }
+                  errorSummary: { type: [string, 'null'] }
+                  attemptedAt: { type: string, format: date-time }
+    RenderedEmail:
+      type: object
+      required: [templateId, templateKey, templateVersion, sender, to, subject, body, unresolved, blockers, priorSends]
+      properties:
+        templateId: { type: string }
+        templateKey: { type: string }
+        templateVersion: { type: integer }
+        sender:
+          oneOf:
+            - type: object
+              required: [id, fromName, fromEmail, provider, verified]
+              properties:
+                id: { type: string }
+                fromName: { type: string }
+                fromEmail: { type: string }
+                provider: { type: string, enum: [DEV_LOG, RESEND] }
+                verified: { type: boolean }
+            - type: 'null'
+        to:
+          type: object
+          required: [name, email]
+          properties:
+            name: { type: string }
+            email: { type: [string, 'null'] }
+        subject: { type: string }
+        body: { type: string }
+        unresolved:
+          type: array
+          items: { type: string }
+          description: Tokens with no value in the records. Sending is blocked until they are edited out.
+        blockers:
+          type: array
+          items: { type: string }
+        priorSends:
+          type: array
+          items: { $ref: '#/components/schemas/OutboundMessageSummary' }
+    SendEmailInput:
+      type: object
+      required: [contactId, subject, body, idempotencyKey]
+      additionalProperties: false
+      properties:
+        templateId: { type: [string, 'null'] }
+        contactId: { type: string }
+        opportunityId: { type: [string, 'null'] }
+        stageId: { type: [string, 'null'] }
+        subject: { type: string, minLength: 1, maxLength: 300 }
+        body: { type: string, minLength: 1, maxLength: 20000 }
+        idempotencyKey: { $ref: '#/components/schemas/IdempotencyKey' }
+    SenderIdentity:
+      type: object
+      required: [id, provider, fromName, fromEmail, replyTo, verification, verifiedAt, verificationDetail, isDefault, hasCredential]
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [DEV_LOG, RESEND] }
+        fromName: { type: string }
+        fromEmail: { type: string }
+        replyTo: { type: [string, 'null'] }
+        verification: { type: string, enum: [UNVERIFIED, PENDING, VERIFIED, FAILED] }
+        verifiedAt: { type: [string, 'null'], format: date-time }
+        verificationDetail: { type: [string, 'null'] }
+        isDefault: { type: boolean }
+        hasCredential: { type: boolean }
+    CreateSenderInput:
+      type: object
+      required: [provider, fromName, fromEmail]
+      additionalProperties: false
+      properties:
+        provider: { type: string, enum: [DEV_LOG, RESEND] }
+        fromName: { type: string, minLength: 1, maxLength: 120 }
+        fromEmail: { type: string, format: email, maxLength: 191 }
+        replyTo: { type: [string, 'null'], maxLength: 191 }
+        apiKey:
+          type: [string, 'null']
+          maxLength: 300
+          description: Company-owned provider key; stored encrypted and never returned.
+        isDefault: { type: boolean }
+
+    # ─────────── profiles / recognition ───────────
+    RecognitionType:
+      type: object
+      required: [id, key, label, emoji]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        label: { type: string }
+        emoji: { type: string }
+    Recognition:
+      type: object
+      required: [id, type, giver, recipient, note, createdAt]
+      properties:
+        id: { type: string }
+        type: { $ref: '#/components/schemas/RecognitionType' }
+        giver: { $ref: '#/components/schemas/UserSummary' }
+        recipient: { $ref: '#/components/schemas/UserSummary' }
+        note: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    GiveRecognitionInput:
+      type: object
+      required: [recipientUserId, typeId]
+      additionalProperties: false
+      properties:
+        recipientUserId: { type: string }
+        typeId: { type: string }
+        note: { type: [string, 'null'], maxLength: 500 }
+    Profile:
+      type: object
+      required: [user, bio, role, memberSince, isSelf, stats, recognitions, assignedJobs, highlights]
+      properties:
+        user: { $ref: '#/components/schemas/UserSummary' }
+        bio: { type: [string, 'null'] }
+        role: { $ref: '#/components/schemas/Role' }
+        memberSince: { type: string, format: date-time }
+        isSelf: { type: boolean }
+        stats:
+          type: object
+          required: [openJobs, jobsCompleted, contactAttempts30d, recognitionCount]
+          properties:
+            openJobs: { type: integer }
+            jobsCompleted: { type: integer }
+            contactAttempts30d: { type: integer }
+            recognitionCount: { type: integer }
+        recognitions:
+          type: array
+          items: { $ref: '#/components/schemas/Recognition' }
+        assignedJobs:
+          type: array
+          items: { $ref: '#/components/schemas/OpportunitySummary' }
+        highlights:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityItem' }
+    UpdateProfileInput:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        slug: { type: string, minLength: 3, maxLength: 40, pattern: '^[a-z0-9][a-z0-9-]*$' }
+        title: { type: [string, 'null'], maxLength: 80 }
+        bio: { type: [string, 'null'], maxLength: 500 }
+        avatarUrl: { type: [string, 'null'], maxLength: 1024 }
+
+    # ─────────── manage / reports ───────────
+    WorkloadRow:
+      type: object
+      required: [owner, openJobs, overdueFollowUps, attempts7d, staleJobs]
+      properties:
+        owner: { $ref: '#/components/schemas/UserSummary' }
+        openJobs: { type: integer }
+        overdueFollowUps: { type: integer }
+        attempts7d: { type: integer }
+        staleJobs: { type: integer }
+    UpcomingAppointment:
+      allOf:
+        - $ref: '#/components/schemas/Appointment'
+        - type: object
+          required: [contactName, jobTitle]
+          properties:
+            contactName: { type: string }
+            jobTitle: { type: string }
+    ManageOverview:
+      type: object
+      required: [openJobs, unassignedLeads, noOutreachYet, staleJobs, overdueFollowUps, upcomingAppointments, workload, staleDays]
+      properties:
+        openJobs: { type: integer }
+        staleDays: { type: integer }
+        unassignedLeads:
+          type: array
+          items: { $ref: '#/components/schemas/OpportunitySummary' }
+        noOutreachYet:
+          type: array
+          items: { $ref: '#/components/schemas/OpportunitySummary' }
+        staleJobs:
+          type: array
+          items: { $ref: '#/components/schemas/OpportunitySummary' }
+        overdueFollowUps:
+          type: array
+          items: { $ref: '#/components/schemas/OpportunitySummary' }
+        upcomingAppointments:
+          type: array
+          items: { $ref: '#/components/schemas/UpcomingAppointment' }
+        workload:
+          type: array
+          items: { $ref: '#/components/schemas/WorkloadRow' }
+    CountRow:
+      type: object
+      required: [key, label, count]
+      properties:
+        key: { type: [string, 'null'] }
+        label: { type: string }
+        count: { type: integer }
+        valueCents: { type: integer }
+        avgDays: { type: number }
+    PipelineReport:
+      type: object
+      required: [generatedAt, definitions, byStage, byOwner, bySource, reachedStage, valueSummary, dataQuality]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        definitions:
+          type: object
+          additionalProperties: { type: string }
+        byStage:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        byOwner:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        bySource:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        reachedStage:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        valueSummary:
+          type: object
+          required: [estimatedOpenCents, contractedCents, contractedJobs]
+          properties:
+            estimatedOpenCents: { type: integer }
+            contractedCents: { type: integer }
+            contractedJobs: { type: integer }
+        dataQuality:
+          type: object
+          required: [missingSource, missingOwner, missingFollowUp]
+          properties:
+            missingSource: { type: integer }
+            missingOwner: { type: integer }
+            missingFollowUp: { type: integer }
+    ActivityReport:
+      type: object
+      required: [from, to, definitions, byType, contactAttempts, verification, firstOutreach, inspectionsBooked]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        definitions:
+          type: object
+          additionalProperties: { type: string }
+        byType:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        contactAttempts:
+          type: object
+          required: [byMethod, byOutcome, byActor]
+          properties:
+            byMethod:
+              type: array
+              items: { $ref: '#/components/schemas/CountRow' }
+            byOutcome:
+              type: array
+              items: { $ref: '#/components/schemas/CountRow' }
+            byActor:
+              type: array
+              items: { $ref: '#/components/schemas/CountRow' }
+        verification:
+          type: array
+          items: { $ref: '#/components/schemas/CountRow' }
+        firstOutreach:
+          type: object
+          required: [leads, reached, medianMinutesAny, medianMinutesVerified, verifiedSample]
+          properties:
+            leads: { type: integer }
+            reached: { type: integer }
+            medianMinutesAny: { type: [number, 'null'] }
+            medianMinutesVerified: { type: [number, 'null'] }
+            verifiedSample: { type: integer }
+        inspectionsBooked: { type: integer }
+    WorkerRun:
+      type: object
+      required: [id, kind, status, error, startedAt, finishedAt, detail]
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        status: { type: string }
+        error: { type: [string, 'null'] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        detail: {}
+
+paths:
+  # ─────────────────────────── system ───────────────────────────
+  /health:
+    get:
+      operationId: getHealth
+      summary: Get health
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: Liveness + database check
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  # ─────────────────────────── auth ───────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      summary: Login
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: Signed in — session cookie set
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Logout
+      tags: [auth]
+      responses:
+        '200':
+          description: Signed out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Get current user
+      tags: [auth]
+      responses:
+        '200':
+          description: Current user, memberships and active company
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/switch-organization:
+    post:
+      operationId: switchOrganization
+      summary: Switch organization
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SwitchOrganizationInput' }
+      responses:
+        '200':
+          description: Active company changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/company-signup:
+    post:
+      operationId: createCompany
+      summary: Licensed company onboarding (creates company + owner). Disabled unless ALLOW_COMPANY_SIGNUP=true.
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCompanyInput' }
+      responses:
+        '201':
+          description: Company created — owner signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /invitations/{token}:
+    get:
+      operationId: getInvitation
+      summary: Get invitation
+      tags: [auth]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TokenPath'
+      responses:
+        '200':
+          description: Invitation preview
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/InvitationPreview' }
+        '404': { $ref: '#/components/responses/Error' }
+  /invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      summary: Accept invitation
+      tags: [auth]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TokenPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptInvitationInput' }
+      responses:
+        '200':
+          description: Joined company — signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  # ─────────────────────────── organization & team ───────────────────────────
+  /organization:
+    get:
+      operationId: getOrganization
+      summary: Get organization
+      tags: [organization]
+      responses:
+        '200':
+          description: Active company
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Organization' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateOrganization
+      summary: Update organization
+      tags: [organization]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrganizationInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Organization' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /members:
+    get:
+      operationId: listMembers
+      summary: List members
+      tags: [team]
+      responses:
+        '200':
+          description: Company members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Error' }
+  /members/{id}:
+    patch:
+      operationId: updateMember
+      summary: Update member
+      tags: [team]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMemberInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Member' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /team/invitations:
+    get:
+      operationId: listInvitations
+      summary: List invitations
+      tags: [team]
+      responses:
+        '200':
+          description: Pending and past invitations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Invitation' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createInvitation
+      summary: Create invitation
+      tags: [team]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateInvitationInput' }
+      responses:
+        '201':
+          description: Invitation created (acceptUrl returned once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Invitation' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /team/invitations/{id}:
+    delete:
+      operationId: revokeInvitation
+      summary: Revoke invitation
+      tags: [team]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── workflow ───────────────────────────
+  /workflow:
+    get:
+      operationId: getWorkflow
+      summary: Get workflow
+      tags: [workflow]
+      responses:
+        '200':
+          description: Latest published workflow for the company
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Workflow' }
+        '401': { $ref: '#/components/responses/Error' }
+  /workflow/publish:
+    post:
+      operationId: publishWorkflow
+      summary: Publish workflow
+      tags: [workflow]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishWorkflowInput' }
+      responses:
+        '201':
+          description: New immutable version published
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Workflow' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /resources:
+    get:
+      operationId: listResources
+      summary: List resources
+      tags: [workflow]
+      responses:
+        '200':
+          description: Company resources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Resource' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createResource
+      summary: Create resource
+      tags: [workflow]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ResourceInput'
+                - type: object
+                  required: [label, url]
+                  properties:
+                    label: { type: string }
+                    url: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Resource' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /resources/{id}:
+    patch:
+      operationId: updateResource
+      summary: Update resource
+      tags: [workflow]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Resource' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── contacts ───────────────────────────
+  /contacts:
+    get:
+      operationId: listContacts
+      summary: List contacts
+      tags: [contacts]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SearchQuery'
+        - in: query
+          name: sourceId
+          schema: { type: string }
+      responses:
+        '200':
+          description: Contact directory (each contact with its jobs)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContactListItem' }
+                  meta: { $ref: '#/components/schemas/PaginatedMeta' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createContact
+      summary: Manual intake — creates the contact, a MANUAL source record and optionally a first job.
+      tags: [contacts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateContactInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ContactDetail' }
+        '401': { $ref: '#/components/responses/Error' }
+  /contacts/match:
+    post:
+      operationId: matchContacts
+      summary: Find possible existing contacts by normalized email/phone/name. Never merges.
+      tags: [contacts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactMatchInput' }
+      responses:
+        '200':
+          description: Candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContactMatch' }
+        '401': { $ref: '#/components/responses/Error' }
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      summary: Get contact
+      tags: [contacts]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Contact with jobs, provenance and recent emails
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ContactDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateContact
+      summary: Update contact
+      tags: [contacts]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactFields' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Contact' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /contacts/{id}/opportunities:
+    post:
+      operationId: createOpportunity
+      summary: Add an independent job to an existing contact.
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewJobFields' }
+      responses:
+        '201':
+          description: Created in the first active stage
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OpportunitySummary' }
+        '404': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── jobs ───────────────────────────
+  /opportunities:
+    get:
+      operationId: listOpportunities
+      summary: List opportunities
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SearchQuery'
+        - in: query
+          name: stageId
+          schema: { type: string }
+        - in: query
+          name: ownerId
+          schema: { type: string, description: 'User id, or "me", or "none" for unassigned' }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [OPEN, WON, LOST, ON_HOLD, CANCELED, ACTIVE, ALL]
+            default: ACTIVE
+          description: ACTIVE = OPEN + WON (jobs still in progress).
+        - in: query
+          name: leadSourceOptionId
+          schema: { type: string }
+        - in: query
+          name: sort
+          schema: { type: string, enum: [recent, oldest, stale], default: recent }
+      responses:
+        '200':
+          description: Pipeline list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/OpportunitySummary' }
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/PaginatedMeta'
+                      - type: object
+                        required: [stageCounts]
+                        properties:
+                          stageCounts:
+                            type: object
+                            additionalProperties: { type: integer }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}:
+    get:
+      operationId: getOpportunity
+      summary: Get opportunity
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Job detail with contact, stage summaries and related records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OpportunityDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: updateOpportunity
+      summary: Update opportunity
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOpportunityInput' }
+      responses:
+        '200':
+          description: Updated; changes are logged as activity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OpportunitySummary' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/fields/{fieldId}:
+    put:
+      operationId: setOpportunityField
+      summary: Set opportunity field
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - in: path
+          name: fieldId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetFieldValueInput' }
+      responses:
+        '200':
+          description: Value stored and change logged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [fieldId, value]
+                    properties:
+                      fieldId: { type: string }
+                      value: {}
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/transitions:
+    post:
+      operationId: transitionOpportunity
+      summary: Manually move the job to another stage (forward or back). Never gated.
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransitionInput' }
+      responses:
+        '200':
+          description: Stage changed (or the original result for a repeated idempotency key)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/StageTransition' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/status:
+    post:
+      operationId: setOpportunityStatus
+      summary: Mark a job lost / on hold / canceled / reopened, independent of stage.
+      tags: [jobs]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetStatusInput' }
+      responses:
+        '200':
+          description: Status changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/StageTransition' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/activities:
+    post:
+      operationId: logActivity
+      summary: Log a note, contact attempt (self-reported) or progress update on a job.
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LogActivityInput' }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityItem' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/appointments:
+    post:
+      operationId: createAppointment
+      summary: Create appointment
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAppointmentInput' }
+      responses:
+        '201':
+          description: Scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Appointment' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/participants:
+    post:
+      operationId: addParticipant
+      summary: Add participant
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddParticipantInput' }
+      responses:
+        '201':
+          description: Added (no application access is granted)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Participant' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /participants/{id}:
+    delete:
+      operationId: removeParticipant
+      summary: Remove participant
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Removed (history retained)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /opportunities/{id}/external-links:
+    post:
+      operationId: createExternalLink
+      summary: Create external link
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ExternalLinkInput'
+                - type: object
+                  required: [kind, label]
+                  properties:
+                    kind: { type: string, enum: [INVOICE, PAYMENT, DEPOSIT, ESTIMATE, OTHER] }
+                    label: { type: string }
+      responses:
+        '201':
+          description: Recorded as MANUAL (unverified)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ExternalLink' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /external-links/{id}:
+    patch:
+      operationId: updateExternalLink
+      summary: Update external link
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExternalLinkInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ExternalLink' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /appointments/{id}:
+    patch:
+      operationId: updateAppointment
+      summary: Reschedule, reassign, complete or cancel. Every change is logged.
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAppointmentInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Appointment' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /external-people:
+    get:
+      operationId: listExternalPeople
+      summary: List external people
+      tags: [fieldwork]
+      parameters:
+        - $ref: '#/components/parameters/SearchQuery'
+      responses:
+        '200':
+          description: Inspectors, crews and subcontractors
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExternalPerson' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createExternalPerson
+      summary: Create external person
+      tags: [fieldwork]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExternalPersonInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ExternalPerson' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── files ───────────────────────────
+  /attachments:
+    post:
+      operationId: uploadAttachment
+      summary: Upload a file once and link it to a job / stage / field. Max 25 MB; images, PDF, office docs.
+      tags: [files]
+      parameters:
+        - in: query
+          name: opportunityId
+          schema: { type: string }
+        - in: query
+          name: contactId
+          schema: { type: string }
+        - in: query
+          name: stageId
+          schema: { type: string }
+        - in: query
+          name: fieldId
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Stored and linked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/AttachmentRef' }
+        '404': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /attachment-links/{id}:
+    delete:
+      operationId: removeAttachmentLink
+      summary: Remove a file from a job/stage. The stored file and its history remain.
+      tags: [files]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Unlinked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /files/{id}:
+    get:
+      operationId: downloadFile
+      summary: Signed, expiring download for locally stored files (development driver).
+      tags: [files]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - in: query
+          name: expires
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: signature
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  # ─────────────────────────── activity ───────────────────────────
+  /activity:
+    get:
+      operationId: listActivity
+      summary: Company river, or a job/contact/profile projection of it.
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SearchQuery'
+        - in: query
+          name: filter
+          schema: { type: string, enum: [all, mine, messages, team, system], default: all }
+        - in: query
+          name: opportunityId
+          schema: { type: string }
+        - in: query
+          name: contactId
+          schema: { type: string }
+        - in: query
+          name: stageId
+          schema: { type: string }
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+          description: Only events recorded after this instant (new-activity indicator).
+      responses:
+        '200':
+          description: Newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityPage' }
+        '401': { $ref: '#/components/responses/Error' }
+  /activity/{id}/corrections:
+    post:
+      operationId: correctActivity
+      summary: Append a correction that references the original entry. The original is never edited.
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CorrectActivityInput' }
+      responses:
+        '201':
+          description: Correction recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityItem' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /activity/{id}/comments:
+    get:
+      operationId: listComments
+      summary: List comments
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Comments, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createComment
+      summary: Create comment
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCommentInput' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /activity/{id}/reactions:
+    post:
+      operationId: toggleReaction
+      summary: Add the reaction, or remove it if the caller already reacted with this code.
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReactionInput' }
+      responses:
+        '200':
+          description: Current reactions on the item
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReactionSummary' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /posts:
+    post:
+      operationId: createPost
+      summary: Create post
+      tags: [activity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePostInput' }
+      responses:
+        '201':
+          description: Posted to the company river
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityItem' }
+        '429': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /posts/{id}:
+    delete:
+      operationId: deletePost
+      summary: Author (or a manager) removes a post; the river shows it as removed.
+      tags: [activity]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── intake ───────────────────────────
+  /sources:
+    get:
+      operationId: listSources
+      summary: List sources
+      tags: [intake]
+      responses:
+        '200':
+          description: Lead/contact sources with contact counts (counts may overlap)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Source' }
+        '401': { $ref: '#/components/responses/Error' }
+  /imports/preview:
+    post:
+      operationId: previewImport
+      summary: Preview import
+      tags: [intake]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvInput' }
+      responses:
+        '200':
+          description: Headers, sample rows and suggested column mapping
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ImportPreview' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /imports:
+    get:
+      operationId: listImports
+      summary: List imports
+      tags: [intake]
+      responses:
+        '200':
+          description: Import history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ImportRun' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: runImport
+      summary: Import CSV rows. Exact email matches link; ambiguous matches go to review; nothing merges silently.
+      tags: [intake]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsvInput' }
+      responses:
+        '201':
+          description: Import finished
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ImportRun' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /intake/review:
+    get:
+      operationId: listReviewQueue
+      summary: List review queue
+      tags: [intake]
+      responses:
+        '200':
+          description: Submissions and rows that need a human match decision
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReviewItem' }
+        '401': { $ref: '#/components/responses/Error' }
+  /intake/review/{id}:
+    post:
+      operationId: resolveReviewItem
+      summary: Resolve review item
+      tags: [intake]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveReviewInput' }
+      responses:
+        '200':
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ResolveReviewResult' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /lead-forms:
+    get:
+      operationId: listLeadForms
+      summary: List lead forms
+      tags: [intake]
+      responses:
+        '200':
+          description: Embeddable forms
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/LeadForm' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createLeadForm
+      summary: Create lead form
+      tags: [intake]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/LeadFormInput'
+                - type: object
+                  required: [label]
+                  properties:
+                    label: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/LeadForm' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /lead-forms/{id}:
+    patch:
+      operationId: updateLeadForm
+      summary: Update lead form
+      tags: [intake]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeadFormInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/LeadForm' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /public/forms/{token}:
+    get:
+      operationId: getPublicForm
+      summary: Get public form
+      tags: [public]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TokenPath'
+      responses:
+        '200':
+          description: Public form configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/PublicForm' }
+        '404': { $ref: '#/components/responses/Error' }
+  /public/forms/{token}/submissions:
+    post:
+      operationId: submitPublicForm
+      summary: Submit public form
+      tags: [public]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TokenPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublicSubmissionInput' }
+      responses:
+        '202':
+          description: Received (the response never reveals whether the person already exists)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [received]
+                    properties:
+                      received: { type: boolean }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  # ─────────────────────────── email ───────────────────────────
+  /email/templates:
+    get:
+      operationId: listEmailTemplates
+      summary: List email templates
+      tags: [email]
+      responses:
+        '200':
+          description: Company templates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EmailTemplate' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/templates/{id}:
+    patch:
+      operationId: updateEmailTemplate
+      summary: Update email template
+      tags: [email]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateEmailTemplateInput' }
+      responses:
+        '200':
+          description: Updated (version incremented)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/EmailTemplate' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/render:
+    post:
+      operationId: renderEmail
+      summary: Resolve a template against real records for preview. Unknown values are reported, never invented.
+      tags: [email]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderEmailInput' }
+      responses:
+        '200':
+          description: Rendered preview
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/RenderedEmail' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/messages:
+    get:
+      operationId: listMessages
+      summary: List messages
+      tags: [email]
+      parameters:
+        - in: query
+          name: opportunityId
+          schema: { type: string }
+        - in: query
+          name: contactId
+          schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Outbound messages, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/OutboundMessageSummary' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: sendEmail
+      summary: Queue the exact reviewed message. Responds QUEUED; delivery is reported later by the worker/provider.
+      tags: [email]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendEmailInput' }
+      responses:
+        '202':
+          description: Queued (or the original message for a repeated idempotency key)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OutboundMessageSummary' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/messages/{id}:
+    get:
+      operationId: getMessage
+      summary: Get message
+      tags: [email]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Message with frozen content and delivery attempts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OutboundMessage' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/messages/{id}/retry:
+    post:
+      operationId: retryMessage
+      summary: Re-queue a FAILED message (same frozen content). Explicit action; never automatic duplicates.
+      tags: [email]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '202':
+          description: Re-queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/OutboundMessageSummary' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/senders:
+    get:
+      operationId: listSenders
+      summary: List senders
+      tags: [email]
+      responses:
+        '200':
+          description: Company sender identities (credentials never returned)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SenderIdentity' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createSender
+      summary: Create sender
+      tags: [email]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSenderInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/SenderIdentity' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/senders/{id}:
+    delete:
+      operationId: deleteSender
+      summary: Delete sender
+      tags: [email]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Removed; credentials destroyed. Sent message history is retained.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullData' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /email/senders/{id}/verify:
+    post:
+      operationId: verifySender
+      summary: Check with the provider that the sender's domain is verified for this account.
+      tags: [email]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/SenderIdentity' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /webhooks/email/resend:
+    post:
+      operationId: receiveResendWebhook
+      summary: Signed Resend delivery events (svix). De-duplicated by event id.
+      tags: [email]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [received]
+                    properties:
+                      received: { type: boolean }
+        '401': { $ref: '#/components/responses/Error' }
+
+  # ─────────────────────────── profiles ───────────────────────────
+  /profiles/me:
+    patch:
+      operationId: updateMyProfile
+      summary: Update my profile
+      tags: [profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '409': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /profiles/{slug}:
+    get:
+      operationId: getProfile
+      summary: Internal profile, visible only to members of a company the person belongs to.
+      tags: [profiles]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string, maxLength: 64 }
+      responses:
+        '200':
+          description: Profile scoped to the viewer's active company
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Profile' }
+        '404': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /recognition-types:
+    get:
+      operationId: listRecognitionTypes
+      summary: List recognition types
+      tags: [profiles]
+      responses:
+        '200':
+          description: Enabled stickers/awards
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/RecognitionType' }
+        '401': { $ref: '#/components/responses/Error' }
+  /recognitions:
+    post:
+      operationId: giveRecognition
+      summary: Give recognition
+      tags: [profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GiveRecognitionInput' }
+      responses:
+        '201':
+          description: Given — appears on the profile and in Activity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Recognition' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }
+  # ─────────────────────────── manage ───────────────────────────
+  /manage/overview:
+    get:
+      operationId: getManageOverview
+      summary: Get manage overview
+      tags: [manage]
+      parameters:
+        - in: query
+          name: staleDays
+          schema: { type: integer, minimum: 1, maximum: 90, default: 7 }
+      responses:
+        '200':
+          description: Assignments, neglected leads, upcoming inspections and workload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ManageOverview' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /reports/pipeline:
+    get:
+      operationId: getPipelineReport
+      summary: Get pipeline report
+      tags: [manage]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Pipeline counts by stable stage/owner/source IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/PipelineReport' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /reports/activity:
+    get:
+      operationId: getActivityReport
+      summary: Get activity report
+      tags: [manage]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Activity counts, verification split and first-outreach latency
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityReport' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /diagnostics/worker-runs:
+    get:
+      operationId: listWorkerRuns
+      summary: Operational worker log (admin only; not part of the Activity river).
+      tags: [manage]
+      responses:
+        '200':
+          description: Recent worker runs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkerRun' }
+        '403': { $ref: '#/components/responses/Error' }
+
+        '401': { $ref: '#/components/responses/Error' }

@@ -1,0 +1,156 @@
+@layer tokens {
+  :root {
+    /* Primitive palette — referenced only by semantic tokens below */
+    --white: #ffffff;
+    --gray-25: #fcfcfc;
+    --gray-50: #f7f7f7;
+    --gray-100: #f1f1f1;
+    --gray-150: #ebebeb;
+    --gray-200: #e5e5e5;
+    --gray-300: #d4d4d4;
+    --gray-400: #a3a3a3;
+    --gray-500: #737373;
+    --gray-600: #525252;
+    --gray-700: #404040;
+    --gray-800: #292929;
+    --gray-900: #171717;
+    --green-600: #15803d;
+    --green-50: #f0fdf4;
+    --amber-600: #b45309;
+    --amber-50: #fffbeb;
+    --red-600: #c2410c;
+    --red-50: #fff7ed;
+
+    /* Semantic colors */
+    --color-bg: var(--white);
+    --color-surface: var(--white);
+    --color-surface-subtle: var(--gray-50);
+    --color-surface-hover: var(--gray-100);
+    --color-text: var(--gray-900);
+    --color-text-secondary: var(--gray-600);
+    --color-muted: var(--gray-500);
+    --color-faint: var(--gray-400);
+    --color-border: var(--gray-200);
+    --color-border-strong: var(--gray-300);
+    --color-accent: var(--gray-800);
+    --color-accent-text: var(--white);
+    --color-focus: var(--gray-900);
+    --color-success: var(--green-600);
+    --color-success-bg: var(--green-50);
+    --color-warning: var(--amber-600);
+    --color-warning-bg: var(--amber-50);
+    --color-danger: var(--red-600);
+    --color-danger-bg: var(--red-50);
+    --color-overlay: rgb(23 23 23 / 0.32);
+
+    /* Component tokens */
+    --button-primary-bg: var(--color-accent);
+    --button-primary-text: var(--color-accent-text);
+    --button-secondary-bg: var(--color-surface);
+    --button-secondary-border: var(--color-border-strong);
+    --pipeline-current: var(--color-accent);
+    --pipeline-done: var(--gray-400);
+    --pipeline-todo: var(--gray-150);
+
+    /* Typography */
+    --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.9375rem;
+    --text-md: 1.0625rem;
+    --text-lg: 1.25rem;
+    --text-xl: 1.625rem;
+    --text-2xl: 2rem;
+    --leading-tight: 1.25;
+    --leading-normal: 1.5;
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+    --tracking-tight: -0.011em;
+
+    /* Spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    /* Geometry */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-full: 999px;
+    --border-width: 1px;
+    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.06);
+    --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.06);
+
+    /* Sizing */
+    --control-height: 36px;
+    --control-height-sm: 30px;
+    --avatar-sm: 28px;
+    --avatar-md: 40px;
+    --avatar-lg: 56px;
+    --avatar-xl: 96px;
+    --pipeline-bar-height: 6px;
+    --thumb-size: 88px;
+
+    /* Layout */
+    --page-max-width: 1440px;
+    --page-padding: var(--space-8);
+    --section-gap: var(--space-8);
+    --header-height: 64px;
+    --contact-column: minmax(300px, 0.55fr);
+    --main-column: minmax(0, 1fr);
+    --river-max-width: 720px;
+
+    /* Layers & motion */
+    --z-header: 20;
+    --z-menu: 40;
+    --z-overlay: 60;
+    --z-toast: 80;
+    --duration-fast: 120ms;
+    --duration-base: 180ms;
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @media (max-width: 720px) {
+    :root {
+      --page-padding: var(--space-4);
+      --section-gap: var(--space-6);
+    }
+  }
+
+  /* Dark theme: token overrides only — components never change. */
+  :root[data-theme='dark'] {
+    --color-bg: #0f0f0f;
+    --color-surface: #161616;
+    --color-surface-subtle: #1c1c1c;
+    --color-surface-hover: #222222;
+    --color-text: #f2f2f2;
+    --color-text-secondary: #c4c4c4;
+    --color-muted: #9a9a9a;
+    --color-faint: #6b6b6b;
+    --color-border: #2a2a2a;
+    --color-border-strong: #3a3a3a;
+    --color-accent: #f2f2f2;
+    --color-accent-text: #111111;
+    --color-focus: #f2f2f2;
+    --color-success: #4ade80;
+    --color-success-bg: #12261a;
+    --color-warning: #fbbf24;
+    --color-warning-bg: #2a2110;
+    --color-danger: #fb923c;
+    --color-danger-bg: #2b1810;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --pipeline-done: #6b6b6b;
+    --pipeline-todo: #2a2a2a;
+    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.6);
+    --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}

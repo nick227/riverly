@@ -1,0 +1,570 @@
+import { db, type OpportunityStatus, type Prisma } from '@project/db'
+import { VALUE_FIELD_TYPES, type FieldDefinition, type WorkflowDefinition } from '@project/shared'
+import { appendActivity, transaction } from '../lib/activity'
+import { loadOpportunity, opportunityScope } from '../lib/access'
+import { hasPermission, requireOrg, type AuthContext, type OrgContext } from '../lib/context'
+import { forbidden, notFound, unprocessable } from '../lib/errors'
+import { isUniqueViolation } from '../lib/idempotency'
+import { decodeCursor, encodeCursor, normalizeLimit } from '../lib/pagination'
+import {
+  contactOut,
+  externalPersonOut,
+  opportunitySummary,
+  opportunitySummaryInclude,
+  transitionOut,
+  userSummary,
+  userSummarySelect,
+  usersById,
+} from '../lib/serialize'
+import { currentWorkflow } from '../lib/workflow'
+import { attachmentRefs } from './AttachmentService'
+import { messageSummariesFor } from './EmailService'
+import { assertMemberTx, assertOption, fieldIdForBinding } from './jobs'
+
+type ListQuery = {
+  cursor?: string
+  limit?: number
+  q?: string
+  stageId?: string
+  ownerId?: string
+  status?: string
+  leadSourceOptionId?: string
+  sort?: 'recent' | 'oldest' | 'stale'
+}
+
+const ACTIVE_STATUSES: OpportunityStatus[] = ['OPEN', 'WON']
+
+type UpdateInput = {
+  title?: string
+  propertyAddress?: string | null
+  inquiry?: string | null
+  leadSourceOptionId?: string | null
+  urgencyOptionId?: string | null
+  ownerId?: string | null
+  nextFollowUpAt?: string | null
+  estimatedValueCents?: number | null
+  contractValueCents?: number | null
+}
+
+const NATIVE_FIELD_OF: Record<keyof UpdateInput, string> = {
+  title: 'opportunity.title',
+  propertyAddress: 'opportunity.propertyAddress',
+  inquiry: 'opportunity.inquiry',
+  leadSourceOptionId: 'opportunity.leadSourceOptionId',
+  urgencyOptionId: 'opportunity.urgencyOptionId',
+  ownerId: 'opportunity.ownerId',
+  nextFollowUpAt: 'opportunity.nextFollowUpAt',
+  estimatedValueCents: 'opportunity.estimatedValueCents',
+  contractValueCents: 'opportunity.contractValueCents',
+}
+
+export class OpportunityService {
+  async list(auth: AuthContext, q: ListQuery) {
+    const ctx = requireOrg(auth)
+    const limit = normalizeLimit(q.limit, 100, 25)
+    const base = this.filters(ctx, q)
+    const sort = q.sort ?? 'recent'
+    const sortField = sort === 'stale' ? 'lastActivityAt' : 'createdAt'
+    const dir = sort === 'recent' ? 'desc' : 'asc'
+    const cursor = decodeCursor(q.cursor)
+    const cmp = dir === 'desc' ? 'lt' : 'gt'
+    const where: Prisma.OpportunityWhereInput = {
+      ...base,
+      ...(q.stageId ? { stageId: q.stageId } : {}),
+      ...(cursor
+        ? {
+            AND: [
+              {
+                OR: [
+                  { [sortField]: { [cmp]: new Date(cursor.createdAt) } },
+                  { [sortField]: new Date(cursor.createdAt), id: { [cmp]: cursor.id } },
+                ],
+              },
+            ],
+          }
+        : {}),
+    }
+    const [rows, counts] = await Promise.all([
+      db.opportunity.findMany({
+        where,
+        orderBy: [{ [sortField]: dir }, { id: dir }],
+        take: limit + 1,
+        include: opportunitySummaryInclude,
+      }),
+      db.opportunity.groupBy({ by: ['stageId'], where: base, _count: true }),
+    ])
+    const hasMore = rows.length > limit
+    const items = rows.slice(0, limit)
+    const last = items[items.length - 1]
+    return {
+      data: items.map(opportunitySummary),
+      meta: {
+        hasMore,
+        nextCursor: hasMore && last ? encodeCursor({ createdAt: (last[sortField] as Date).toISOString(), id: last.id }) : null,
+        stageCounts: Object.fromEntries(counts.map((c) => [c.stageId, c._count])),
+      },
+    }
+  }
+
+  private filters(ctx: OrgContext, q: ListQuery): Prisma.OpportunityWhereInput {
+    const status = q.status ?? 'ACTIVE'
+    const digits = q.q?.replace(/\D/g, '') ?? ''
+    return {
+      ...opportunityScope(ctx),
+      ...(status === 'ALL' ? {} : status === 'ACTIVE' ? { status: { in: ACTIVE_STATUSES } } : { status: status as OpportunityStatus }),
+      ...(q.ownerId === 'none' ? { ownerId: null } : q.ownerId === 'me' ? { ownerId: ctx.userId } : q.ownerId ? { ownerId: q.ownerId } : {}),
+      ...(q.leadSourceOptionId ? { leadSourceOptionId: q.leadSourceOptionId } : {}),
+      ...(q.q
+        ? {
+            OR: [
+              { title: { contains: q.q } },
+              { propertyAddress: { contains: q.q } },
+              { contact: { name: { contains: q.q } } },
+              { contact: { email: { contains: q.q } } },
+              ...(digits.length >= 3 ? [{ contact: { phoneNormalized: { contains: digits } } }] : []),
+            ],
+          }
+        : {}),
+    }
+  }
+
+  async get(auth: AuthContext, id: string) {
+    const ctx = requireOrg(auth)
+    await loadOpportunity(ctx, id)
+    return this.detail(ctx, id)
+  }
+
+  async detail(ctx: OrgContext, id: string) {
+    const o = await db.opportunity.findFirstOrThrow({
+      where: { id, organizationId: ctx.orgId },
+      include: {
+        ...opportunitySummaryInclude,
+        contact: true,
+        fieldValues: true,
+        stageTransitions: { orderBy: { occurredAt: 'desc' }, take: 50 },
+        appointments: { orderBy: { startsAt: 'desc' }, include: { externalPerson: true } },
+        participants: { where: { removedAt: null }, include: { externalPerson: true }, orderBy: { createdAt: 'asc' } },
+        externalLinks: { orderBy: { createdAt: 'asc' } },
+        reviewRequests: { orderBy: { createdAt: 'desc' }, include: { messages: { orderBy: { queuedAt: 'desc' }, take: 1 } } },
+        sourceRecord: { include: { source: true } },
+      },
+    })
+    const people = await usersById([
+      ...o.stageTransitions.map((t) => t.actorId),
+      ...o.appointments.map((a) => a.assigneeUserId),
+      ...o.participants.map((p) => p.memberUserId),
+      ...o.reviewRequests.flatMap((r) => r.messages.map((m) => m.requestedById)),
+    ])
+    const [events, otherJobs, attachments, messageMap] = await Promise.all([
+      db.activityEvent.findMany({
+        where: { organizationId: ctx.orgId, opportunityId: id },
+        select: { stageId: true, type: true, methodId: true, outcomeId: true, occurredAt: true },
+        orderBy: { occurredAt: 'asc' },
+      }),
+      db.opportunity.findMany({
+        where: { organizationId: ctx.orgId, contactId: o.contactId, deletedAt: null, id: { not: id } },
+        include: opportunitySummaryInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      attachmentRefs({ organizationId: ctx.orgId, opportunityId: id }),
+      messageSummariesFor(o.reviewRequests.flatMap((r) => r.messages)),
+    ])
+
+    const summaries = new Map<string, { stageId: string; eventCount: number; attemptCount: number; lastEventAt: Date | null; latestMethodId: string | null; latestOutcomeId: string | null }>()
+    for (const e of events) {
+      if (!e.stageId) continue
+      const s = summaries.get(e.stageId) ?? { stageId: e.stageId, eventCount: 0, attemptCount: 0, lastEventAt: null, latestMethodId: null, latestOutcomeId: null }
+      s.eventCount++
+      s.lastEventAt = e.occurredAt
+      if (e.type === 'contact.attempt') {
+        s.attemptCount++
+        s.latestMethodId = e.methodId
+        s.latestOutcomeId = e.outcomeId
+      }
+      summaries.set(e.stageId, s)
+    }
+
+    return {
+      ...opportunitySummary({ ...o, contact: { name: o.contact.name } }),
+      propertyAddress: o.propertyAddress,
+      inquiry: o.inquiry,
+      urgencyOptionId: o.urgencyOptionId,
+      statusReason: o.statusReason,
+      workflowVersionId: o.workflowVersionId,
+      leadReceivedVia: o.leadReceivedVia,
+      contact: contactOut(o.contact),
+      fieldValues: Object.fromEntries(o.fieldValues.map((v) => [v.fieldId, v.value])),
+      stageSummaries: [...summaries.values()],
+      transitions: o.stageTransitions.map((t) => transitionOut(t, t.actorId ? people.get(t.actorId) : null)),
+      appointments: o.appointments.map((a) => appointmentOut(a, people)),
+      participants: o.participants.map((p) => ({
+        id: p.id,
+        roleKey: p.roleKey,
+        stageId: p.stageId,
+        member: userSummary(p.memberUserId ? people.get(p.memberUserId) : null),
+        externalPerson: externalPersonOut(p.externalPerson),
+      })),
+      attachments,
+      externalLinks: o.externalLinks.map(externalLinkOut),
+      reviewRequests: o.reviewRequests.map((r) => ({
+        id: r.id,
+        destinationUrl: r.destinationUrl,
+        reviewStatus: r.reviewStatus,
+        createdAt: r.createdAt,
+        latestMessage: r.messages[0] ? messageMap.get(r.messages[0].id) ?? null : null,
+      })),
+      source: o.sourceRecord
+        ? {
+            sourceRecordId: o.sourceRecord.id,
+            sourceName: o.sourceRecord.source.displayName,
+            kind: o.sourceRecord.source.kind,
+            receivedAt: o.sourceRecord.receivedAt,
+            providerTimestamp: o.sourceRecord.providerTimestamp,
+            matchedBy: 'origin',
+          }
+        : null,
+      otherJobs: otherJobs.map(opportunitySummary),
+    }
+  }
+
+  async update(auth: AuthContext, id: string, input: UpdateInput) {
+    const ctx = requireOrg(auth)
+    const before = await loadOpportunity(ctx, id)
+    const { definition } = await currentWorkflow(ctx.orgId)
+
+    if (input.title !== undefined && !input.title.trim()) throw unprocessable('Service cannot be empty')
+    assertOption(definition, fieldIdForBinding(definition, 'opportunity.leadSourceOptionId'), input.leadSourceOptionId, before.leadSourceOptionId)
+    assertOption(definition, fieldIdForBinding(definition, 'opportunity.urgencyOptionId'), input.urgencyOptionId, before.urgencyOptionId)
+
+    const ownerChanging = input.ownerId !== undefined && input.ownerId !== before.ownerId
+    if (ownerChanging && !hasPermission(ctx, 'jobs.assign_any')) {
+      // Members may claim an unassigned job for themselves; reassigning is a manager action.
+      const selfClaim = before.ownerId === null && input.ownerId === ctx.userId
+      if (!selfClaim) throw forbidden('Only managers can reassign jobs')
+    }
+
+    const data: Prisma.OpportunityUncheckedUpdateInput = {}
+    const changes: { fieldId: string; from: unknown; to: unknown }[] = []
+    for (const key of Object.keys(input) as (keyof UpdateInput)[]) {
+      let value = input[key] as unknown
+      if (value === undefined) continue
+      if (typeof value === 'string' && key !== 'ownerId') value = value.trim() || null
+      if (key === 'title' && value === null) continue
+      if (key === 'nextFollowUpAt' && value) value = new Date(value as string)
+      const prev = before[key]
+      const same = prev instanceof Date && value instanceof Date ? prev.getTime() === value.getTime() : (prev ?? null) === (value ?? null)
+      if (same) continue
+      ;(data as Record<string, unknown>)[key] = value
+      if (key !== 'ownerId') changes.push({ fieldId: fieldIdForBinding(definition, NATIVE_FIELD_OF[key]), from: prev ?? null, to: value ?? null })
+    }
+    if (!Object.keys(data).length) return this.summary(id)
+
+    await transaction(async (tx) => {
+      if (ownerChanging && input.ownerId) await assertMemberTx(tx, ctx.orgId, input.ownerId)
+      await tx.opportunity.update({ where: { id }, data })
+      if (ownerChanging) {
+        await appendActivity(tx, {
+          organizationId: ctx.orgId,
+          type: 'assignment.changed',
+          category: 'WORK',
+          actorType: 'USER',
+          actorId: ctx.userId,
+          verification: 'SYSTEM_RECORDED',
+          contactId: before.contactId,
+          opportunityId: id,
+          stageId: before.stageId,
+          workflowVersionId: before.workflowVersionId,
+          payload: { fromOwnerId: before.ownerId, toOwnerId: input.ownerId ?? null },
+        })
+      }
+      if (changes.length) {
+        await appendActivity(tx, {
+          organizationId: ctx.orgId,
+          type: 'job.updated',
+          category: 'WORK',
+          actorType: 'USER',
+          actorId: ctx.userId,
+          verification: 'SYSTEM_RECORDED',
+          contactId: before.contactId,
+          opportunityId: id,
+          stageId: before.stageId,
+          workflowVersionId: before.workflowVersionId,
+          payload: { changes } as unknown as Prisma.InputJsonValue,
+        })
+      }
+    })
+    return this.summary(id)
+  }
+
+  async setField(auth: AuthContext, id: string, fieldId: string, rawValue: unknown) {
+    const ctx = requireOrg(auth)
+    const opp = await loadOpportunity(ctx, id)
+    const workflow = await currentWorkflow(ctx.orgId)
+    const field = workflow.definition.fields.find((f) => f.id === fieldId)
+    if (!field) throw notFound('Field')
+    if (field.binding) throw unprocessable(`${field.label} is stored on the job; update it with PATCH /opportunities/{id}`)
+    if (!(VALUE_FIELD_TYPES as readonly string[]).includes(field.type))
+      throw unprocessable(`${field.label} is recorded through its own action, not as a value`)
+    if (field.editable === false || field.retired) throw unprocessable(`${field.label} is not editable`)
+    const value = await validateFieldValue(ctx.orgId, workflow.definition, field, rawValue)
+    const previous = await db.opportunityFieldValue.findUnique({ where: { opportunityId_fieldId: { opportunityId: id, fieldId } } })
+    await transaction(async (tx) => {
+      if (value === null) {
+        await tx.opportunityFieldValue.deleteMany({ where: { opportunityId: id, fieldId } })
+      } else {
+        await tx.opportunityFieldValue.upsert({
+          where: { opportunityId_fieldId: { opportunityId: id, fieldId } },
+          create: { organizationId: ctx.orgId, opportunityId: id, fieldId, value: value as Prisma.InputJsonValue, workflowVersionId: workflow.version.id, updatedById: ctx.userId },
+          update: { value: value as Prisma.InputJsonValue, workflowVersionId: workflow.version.id, updatedById: ctx.userId },
+        })
+      }
+      await appendActivity(tx, {
+        organizationId: ctx.orgId,
+        type: 'field.changed',
+        category: 'WORK',
+        actorType: 'USER',
+        actorId: ctx.userId,
+        verification: 'SYSTEM_RECORDED',
+        contactId: opp.contactId,
+        opportunityId: id,
+        stageId: workflow.definition.stages.find((s) => s.fieldIds.includes(fieldId))?.id ?? opp.stageId,
+        workflowVersionId: workflow.version.id,
+        payload: { changes: [{ fieldId, from: previous?.value ?? null, to: value }] } as unknown as Prisma.InputJsonValue,
+      })
+    })
+    return { fieldId, value }
+  }
+
+  /** Manual stage change, forward or backward, never gated by fields or checklists. */
+  async transition(auth: AuthContext, id: string, input: { toStageId: string; reason?: string | null; idempotencyKey: string }) {
+    const ctx = requireOrg(auth)
+    const existing = await db.stageTransition.findUnique({
+      where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
+    })
+    if (existing && existing.organizationId === ctx.orgId) return this.transitionResult(existing.id)
+    const opp = await loadOpportunity(ctx, id)
+    const workflow = await currentWorkflow(ctx.orgId)
+    const target = workflow.definition.stages.find((s) => s.id === input.toStageId)
+    if (!target) throw unprocessable('Unknown stage')
+    if (target.retired) throw unprocessable(`${target.label} has been retired`)
+    if (target.id === opp.stageId) throw unprocessable(`This job is already in ${target.label}`)
+    const from = workflow.definition.stages.find((s) => s.id === opp.stageId)
+    const kind = from && target.order < from.order ? 'BACKWARD' : 'FORWARD'
+    try {
+      const t = await transaction(async (tx) => {
+        // Conditional update: a concurrent move from the same starting stage wins once.
+        const moved = await tx.opportunity.updateMany({
+          where: { id, organizationId: ctx.orgId, stageId: opp.stageId },
+          data: { stageId: target.id, stageEnteredAt: new Date(), workflowVersionId: workflow.version.id },
+        })
+        if (moved.count === 0) throw unprocessable('This job was just moved by someone else. Refresh to see its current stage.')
+        const row = await tx.stageTransition.create({
+          data: {
+            organizationId: ctx.orgId,
+            opportunityId: id,
+            workflowVersionId: workflow.version.id,
+            kind,
+            fromStageId: opp.stageId,
+            toStageId: target.id,
+            reason: input.reason?.trim() || null,
+            actorId: ctx.userId,
+            idempotencyKey: input.idempotencyKey,
+            occurredAt: new Date(),
+          },
+        })
+        await appendActivity(tx, {
+          organizationId: ctx.orgId,
+          type: 'stage.changed',
+          category: 'WORK',
+          actorType: 'USER',
+          actorId: ctx.userId,
+          verification: 'SYSTEM_RECORDED',
+          contactId: opp.contactId,
+          opportunityId: id,
+          stageId: target.id,
+          workflowVersionId: workflow.version.id,
+          note: input.reason?.trim() || null,
+          payload: { fromStageId: opp.stageId, toStageId: target.id, kind },
+        })
+        return row
+      })
+      return this.transitionResult(t.id)
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        const again = await db.stageTransition.findUnique({
+          where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
+        })
+        if (again) return this.transitionResult(again.id)
+      }
+      throw err
+    }
+  }
+
+  async setStatus(auth: AuthContext, id: string, input: { status: OpportunityStatus; reason?: string | null; idempotencyKey: string }) {
+    const ctx = requireOrg(auth)
+    const existing = await db.stageTransition.findUnique({
+      where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
+    })
+    if (existing && existing.organizationId === ctx.orgId) return this.transitionResult(existing.id)
+    const opp = await loadOpportunity(ctx, id)
+    if (opp.status === input.status) throw unprocessable(`This job is already ${input.status.toLowerCase().replace('_', ' ')}`)
+    const reason = input.reason?.trim() || null
+    if ((input.status === 'LOST' || input.status === 'CANCELED') && !reason)
+      throw unprocessable('Add a short reason when marking a job lost or canceled')
+    const workflow = await currentWorkflow(ctx.orgId)
+    const t = await transaction(async (tx) => {
+      await tx.opportunity.update({ where: { id }, data: { status: input.status, statusReason: reason } })
+      const row = await tx.stageTransition.create({
+        data: {
+          organizationId: ctx.orgId,
+          opportunityId: id,
+          workflowVersionId: workflow.version.id,
+          kind: 'STATUS',
+          fromStageId: opp.stageId,
+          toStageId: opp.stageId,
+          fromStatus: opp.status,
+          toStatus: input.status,
+          reason,
+          actorId: ctx.userId,
+          idempotencyKey: input.idempotencyKey,
+          occurredAt: new Date(),
+        },
+      })
+      await appendActivity(tx, {
+        organizationId: ctx.orgId,
+        type: 'status.changed',
+        category: 'WORK',
+        actorType: 'USER',
+        actorId: ctx.userId,
+        verification: 'SYSTEM_RECORDED',
+        contactId: opp.contactId,
+        opportunityId: id,
+        stageId: opp.stageId,
+        workflowVersionId: workflow.version.id,
+        note: reason,
+        payload: { fromStatus: opp.status, toStatus: input.status },
+      })
+      return row
+    })
+    return this.transitionResult(t.id)
+  }
+
+  private async transitionResult(id: string) {
+    const t = await db.stageTransition.findUniqueOrThrow({ where: { id } })
+    const actor = t.actorId ? await db.user.findUnique({ where: { id: t.actorId }, select: userSummarySelect }) : null
+    return transitionOut(t, actor)
+  }
+
+  private async summary(id: string) {
+    return opportunitySummary(await db.opportunity.findUniqueOrThrow({ where: { id }, include: opportunitySummaryInclude }))
+  }
+}
+
+async function validateFieldValue(orgId: string, def: WorkflowDefinition, field: FieldDefinition, v: unknown): Promise<unknown> {
+  if (v === null || v === '' || (Array.isArray(v) && v.length === 0)) return null
+  const fail = (msg: string): never => {
+    throw unprocessable(`${field.label}: ${msg}`)
+  }
+  switch (field.type) {
+    case 'text':
+    case 'textarea': {
+      if (typeof v !== 'string') fail('expected text')
+      const s = (v as string).trim()
+      if (s.length > (field.type === 'text' ? 300 : 5000)) fail('too long')
+      return s || null
+    }
+    case 'date':
+      if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) fail('expected a date (YYYY-MM-DD)')
+      return v
+    case 'datetime':
+      if (typeof v !== 'string' || Number.isNaN(Date.parse(v))) fail('expected a date and time')
+      return new Date(v as string).toISOString()
+    case 'select':
+      if (typeof v !== 'string') fail('expected an option')
+      assertOption(def, field.id, v as string)
+      return v
+    case 'multi_select': {
+      if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) fail('expected a list of options')
+      const ids = [...new Set(v as string[])]
+      for (const id of ids) assertOption(def, field.id, id)
+      return ids
+    }
+    case 'boolean':
+      if (typeof v !== 'boolean') fail('expected yes or no')
+      return v
+    case 'money':
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) fail('expected an amount in cents')
+      return v
+    case 'member': {
+      if (typeof v !== 'string') fail('expected a team member')
+      const m = await db.membership.findUnique({ where: { organizationId_userId: { organizationId: orgId, userId: v as string } } })
+      if (!m || m.status !== 'ACTIVE') fail('not an active team member')
+      return v
+    }
+    case 'url': {
+      if (typeof v !== 'string') fail('expected a link')
+      try {
+        const u = new URL(v as string)
+        if (!['http:', 'https:'].includes(u.protocol)) fail('only http(s) links are allowed')
+        return u.toString()
+      } catch {
+        return fail('expected a full URL')
+      }
+    }
+    default:
+      return fail('not a value field')
+  }
+}
+
+export function appointmentOut(
+  a: {
+    id: string
+    opportunityId: string
+    stageId: string
+    kind: string
+    startsAt: Date
+    endsAt: Date | null
+    status: string
+    assigneeUserId: string | null
+    notes: string | null
+    externalPerson: Parameters<typeof externalPersonOut>[0]
+  },
+  people: Map<string, Parameters<typeof userSummary>[0] & {}>,
+) {
+  return {
+    id: a.id,
+    opportunityId: a.opportunityId,
+    stageId: a.stageId,
+    kind: a.kind,
+    startsAt: a.startsAt,
+    endsAt: a.endsAt,
+    status: a.status,
+    assignee: userSummary(a.assigneeUserId ? people.get(a.assigneeUserId) : null),
+    externalPerson: externalPersonOut(a.externalPerson),
+    notes: a.notes,
+  }
+}
+
+export function externalLinkOut(l: {
+  id: string
+  kind: string
+  label: string
+  url: string | null
+  amountCents: number | null
+  statusLabel: string | null
+  provenance: string
+  statusRecordedAt: Date | null
+  createdAt: Date
+}) {
+  return {
+    id: l.id,
+    kind: l.kind,
+    label: l.label,
+    url: l.url,
+    amountCents: l.amountCents,
+    statusLabel: l.statusLabel,
+    provenance: l.provenance,
+    statusRecordedAt: l.statusRecordedAt,
+    createdAt: l.createdAt,
+  }
+}

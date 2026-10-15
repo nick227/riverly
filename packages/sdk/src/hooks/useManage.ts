@@ -1,0 +1,28 @@
+import { useQuery } from '@tanstack/react-query'
+import { getApiClient } from '../client'
+import { unwrap } from './_util'
+
+export function useManageOverview(staleDays = 7) {
+  return useQuery({
+    queryKey: ['manage-overview', staleDays],
+    queryFn: async () => (await unwrap(getApiClient().GET('/manage/overview', { params: { query: { staleDays } } }))).data,
+  })
+}
+
+export function usePipelineReport(range: { from?: string; to?: string } = {}) {
+  return useQuery({
+    queryKey: ['report', 'pipeline', range],
+    queryFn: async () => (await unwrap(getApiClient().GET('/reports/pipeline', { params: { query: range } }))).data,
+  })
+}
+
+export function useActivityReport(range: { from?: string; to?: string } = {}) {
+  return useQuery({
+    queryKey: ['report', 'activity', range],
+    queryFn: async () => (await unwrap(getApiClient().GET('/reports/activity', { params: { query: range } }))).data,
+  })
+}
+
+export function useWorkerRuns(enabled = true) {
+  return useQuery({ queryKey: ['worker-runs'], enabled, queryFn: async () => (await unwrap(getApiClient().GET('/diagnostics/worker-runs'))).data })
+}

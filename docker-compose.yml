@@ -1,0 +1,21 @@
+# Local MySQL 8.0 — same engine/version family as Railway's MySQL service.
+# `docker compose up -d db` then use DATABASE_URL=mysql://riverly:riverly_dev@127.0.0.1:3407/riverly_dev
+services:
+  db:
+    image: mysql:8.0
+    ports: ['127.0.0.1:3407:3306']
+    environment:
+      MYSQL_ROOT_PASSWORD: riverly_root_dev
+      MYSQL_DATABASE: riverly_dev
+      MYSQL_USER: riverly
+      MYSQL_PASSWORD: riverly_dev
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
+    volumes:
+      - riverly-mysql:/var/lib/mysql
+      - ./scripts/docker-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1']
+      interval: 5s
+      retries: 20
+volumes:
+  riverly-mysql:

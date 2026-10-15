@@ -1,0 +1,357 @@
+{
+  "templateKey": "roofing-v1",
+  "version": 1,
+  "terminology": {
+    "contact": "Contact",
+    "opportunity": "Job",
+    "owner": "Salesperson",
+    "activity": "Activity"
+  },
+  "stages": [
+    {
+      "id": "lead",
+      "label": "New Lead",
+      "order": 1,
+      "fields": [
+        "leadSource",
+        "inquiry",
+        "ownerId",
+        "urgency"
+      ],
+      "primaryAction": "advance.called",
+      "resources": [
+        "call-guide"
+      ]
+    },
+    {
+      "id": "called",
+      "label": "Called",
+      "order": 2,
+      "fields": [
+        "contactMethod",
+        "contactOutcome",
+        "followUpAt",
+        "interest"
+      ],
+      "primaryAction": "advance.inspection",
+      "resources": [
+        "sales-playbook"
+      ]
+    },
+    {
+      "id": "inspection",
+      "label": "Inspection",
+      "order": 3,
+      "fields": [
+        "appointment",
+        "inspector",
+        "inspectionReport",
+        "inspectionPhotos"
+      ],
+      "primaryAction": "advance.contract",
+      "resources": [
+        "inspection-guide"
+      ]
+    },
+    {
+      "id": "contract",
+      "label": "Contract Signed",
+      "order": 4,
+      "fields": [
+        "estimate",
+        "contractFile",
+        "signatureStatus",
+        "depositReference"
+      ],
+      "primaryAction": "advance.started",
+      "resources": [
+        "contract-template"
+      ]
+    },
+    {
+      "id": "started",
+      "label": "Job Started",
+      "order": 5,
+      "fields": [
+        "startedAt",
+        "crew",
+        "progress",
+        "changeOrders"
+      ],
+      "primaryAction": "advance.completed",
+      "resources": []
+    },
+    {
+      "id": "completed",
+      "label": "Job Completed",
+      "order": 6,
+      "fields": [
+        "completionReport",
+        "finalPhotos",
+        "paymentStatus",
+        "reviewRequest"
+      ],
+      "resources": []
+    }
+  ],
+  "fields": [
+    {
+      "id": "leadSource",
+      "label": "Lead source",
+      "type": "select",
+      "binding": "opportunity.leadSource",
+      "options": [
+        {
+          "id": "google_ad",
+          "label": "Google Search ad"
+        },
+        {
+          "id": "referral",
+          "label": "Referral"
+        },
+        {
+          "id": "web_form",
+          "label": "Website form"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ]
+    },
+    {
+      "id": "inquiry",
+      "label": "Inquiry",
+      "type": "textArea",
+      "binding": "opportunity.inquiry"
+    },
+    {
+      "id": "ownerId",
+      "label": "Salesperson",
+      "type": "memberSelect",
+      "binding": "opportunity.ownerId"
+    },
+    {
+      "id": "urgency",
+      "label": "Urgency",
+      "type": "select",
+      "binding": "opportunity.urgency",
+      "options": [
+        {
+          "id": "asap",
+          "label": "ASAP"
+        },
+        {
+          "id": "quarter",
+          "label": "Within 3 months"
+        },
+        {
+          "id": "flexible",
+          "label": "Flexible"
+        }
+      ]
+    },
+    {
+      "id": "contactMethod",
+      "label": "Method",
+      "type": "activitySelect",
+      "eventProperty": "methodId",
+      "options": [
+        {
+          "id": "phone",
+          "label": "Phone"
+        },
+        {
+          "id": "email",
+          "label": "Email"
+        },
+        {
+          "id": "sms",
+          "label": "Text"
+        }
+      ]
+    },
+    {
+      "id": "contactOutcome",
+      "label": "Outcome",
+      "type": "activitySelect",
+      "eventProperty": "outcomeId",
+      "options": [
+        {
+          "id": "no_answer",
+          "label": "No answer"
+        },
+        {
+          "id": "voicemail",
+          "label": "Left voicemail"
+        },
+        {
+          "id": "spoke",
+          "label": "Spoke"
+        },
+        {
+          "id": "sent",
+          "label": "Sent message"
+        }
+      ]
+    },
+    {
+      "id": "followUpAt",
+      "label": "Follow-up",
+      "type": "dateTime"
+    },
+    {
+      "id": "interest",
+      "label": "Interest",
+      "type": "select",
+      "options": [
+        {
+          "id": "interested",
+          "label": "Interested"
+        },
+        {
+          "id": "undecided",
+          "label": "Undecided"
+        },
+        {
+          "id": "declined",
+          "label": "Not interested"
+        }
+      ]
+    },
+    {
+      "id": "appointment",
+      "label": "Appointment",
+      "type": "appointmentRef"
+    },
+    {
+      "id": "inspector",
+      "label": "Inspector",
+      "type": "person"
+    },
+    {
+      "id": "inspectionReport",
+      "label": "Report",
+      "type": "file"
+    },
+    {
+      "id": "inspectionPhotos",
+      "label": "Photos",
+      "type": "photoGallery"
+    },
+    {
+      "id": "estimate",
+      "label": "Estimate",
+      "type": "money"
+    },
+    {
+      "id": "contractFile",
+      "label": "Contract",
+      "type": "file"
+    },
+    {
+      "id": "signatureStatus",
+      "label": "Signature",
+      "type": "select",
+      "options": [
+        {
+          "id": "pending",
+          "label": "Pending"
+        },
+        {
+          "id": "signed",
+          "label": "Signed"
+        },
+        {
+          "id": "declined",
+          "label": "Declined"
+        }
+      ]
+    },
+    {
+      "id": "depositReference",
+      "label": "Deposit",
+      "type": "externalLink"
+    },
+    {
+      "id": "startedAt",
+      "label": "Start date",
+      "type": "date"
+    },
+    {
+      "id": "crew",
+      "label": "Crew",
+      "type": "people"
+    },
+    {
+      "id": "progress",
+      "label": "Progress",
+      "type": "activityText"
+    },
+    {
+      "id": "changeOrders",
+      "label": "Changes",
+      "type": "fileList"
+    },
+    {
+      "id": "completionReport",
+      "label": "Completion",
+      "type": "file"
+    },
+    {
+      "id": "finalPhotos",
+      "label": "Final photos",
+      "type": "photoGallery"
+    },
+    {
+      "id": "paymentStatus",
+      "label": "Payment",
+      "type": "externalStatus"
+    },
+    {
+      "id": "reviewRequest",
+      "label": "Review",
+      "type": "activityAction"
+    }
+  ],
+  "page": {
+    "layout": "workflow-sidebar",
+    "background": "#FFFFFF",
+    "accent": "#222222",
+    "contactActions": [
+      "call",
+      "text",
+      "email",
+      "schedule"
+    ],
+    "activityFeed": true,
+    "fullRecordSupported": true
+  },
+  "status": "template-default; editable through published company overrides",
+  "configurationRules": {
+    "stageRemoval": "retire and map active opportunities explicitly",
+    "stageChange": "manual; no required fields",
+    "publishedVersion": "immutable snapshot",
+    "activitySummary": "derived projection",
+    "optionIds": "stable; retire not reuse"
+  },
+  "leadIntake": {
+    "channels": [
+      "manual",
+      "csv",
+      "embedded_form"
+    ],
+    "externalProviderSync": false
+  },
+  "billing": {
+    "mode": "external_links_plus_manual_status",
+    "providerSync": false
+  },
+  "reporting": [
+    "pipeline_count_by_stage",
+    "activity_count_by_kind",
+    "stage_age",
+    "owner"
+  ],
+  "aiAssistantEnabled": false
+}
