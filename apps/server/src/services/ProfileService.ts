@@ -1,10 +1,10 @@
-import { db, type Recognition, type RecognitionType } from '@project/db'
+import { db } from '@project/db'
 import { appendActivity, transaction } from '../lib/activity'
 import { assertActiveMember } from '../lib/access'
 import { requireOrg, type AuthContext } from '../lib/context'
 import { conflict, notFound, unprocessable } from '../lib/errors'
 import { rateLimit } from '../lib/rateLimit'
-import { opportunitySummary, opportunitySummaryInclude, userSummary, usersById } from '../lib/serialize'
+import { opportunitySummary, opportunitySummaryInclude, recognitionsOut, recognitionTypeOut, userSummary } from '../lib/serialize'
 import { hydrate } from './ActivityService'
 import { AuthService } from './AuthService'
 
@@ -92,7 +92,7 @@ export class ProfileService {
   async recognitionTypes(auth: AuthContext) {
     const ctx = requireOrg(auth)
     const rows = await db.recognitionType.findMany({ where: { organizationId: ctx.orgId, isEnabled: true }, orderBy: { createdAt: 'asc' } })
-    return rows.map(typeOut)
+    return rows.map(recognitionTypeOut)
   }
 
   async give(auth: AuthContext, input: { recipientUserId: string; typeId: string; note?: string | null }) {
@@ -137,25 +137,4 @@ async function lastStageCompletions(orgId: string, userId: string) {
   const last = stages[stages.length - 1]
   if (!last) return 0
   return db.opportunity.count({ where: { organizationId: orgId, ownerId: userId, deletedAt: null, stageId: last.id } })
-}
-
-export async function recognitionsOut(rows: (Recognition & { type: RecognitionType })[]) {
-  const people = await usersById(rows.flatMap((r) => [r.giverUserId, r.recipientUserId]))
-  return new Map(
-    rows.map((r) => [
-      r.id,
-      {
-        id: r.id,
-        type: typeOut(r.type),
-        giver: userSummary(people.get(r.giverUserId))!,
-        recipient: userSummary(people.get(r.recipientUserId))!,
-        note: r.note,
-        createdAt: r.createdAt,
-      },
-    ]),
-  )
-}
-
-function typeOut(t: RecognitionType) {
-  return { id: t.id, key: t.key, label: t.label, emoji: t.emoji }
 }

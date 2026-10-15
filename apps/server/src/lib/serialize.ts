@@ -1,4 +1,4 @@
-import type { Contact, Opportunity, User, StageTransition, ExternalPerson, OutboundMessage } from '@project/db'
+import type { Contact, Opportunity, User, StageTransition, ExternalPerson, OutboundMessage, Recognition, RecognitionType } from '@project/db'
 
 // Shapes returned by the API. Response schemas in openapi.yaml strip anything not listed,
 // but serializers keep the intent explicit (e.g. passwordHash never leaves User).
@@ -98,4 +98,25 @@ export async function usersById(ids: (string | null | undefined)[]) {
   if (!unique.length) return new Map<string, UserSummaryRow>()
   const rows = await db.user.findMany({ where: { id: { in: unique } }, select: userSummarySelect })
   return new Map(rows.map((u) => [u.id, u]))
+}
+
+export async function recognitionsOut(rows: (Recognition & { type: RecognitionType })[]) {
+  const people = await usersById(rows.flatMap((r) => [r.giverUserId, r.recipientUserId]))
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      {
+        id: r.id,
+        type: recognitionTypeOut(r.type),
+        giver: userSummary(people.get(r.giverUserId))!,
+        recipient: userSummary(people.get(r.recipientUserId))!,
+        note: r.note,
+        createdAt: r.createdAt,
+      },
+    ]),
+  )
+}
+
+export function recognitionTypeOut(t: RecognitionType) {
+  return { id: t.id, key: t.key, label: t.label, emoji: t.emoji }
 }

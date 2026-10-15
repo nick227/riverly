@@ -174,7 +174,7 @@ function fromDraft(field: FieldDef, draft: string | string[]): unknown {
   return s === '' ? null : s
 }
 
-export function displayValue(field: FieldDef, raw: unknown, ctx: Pick<ControlContext, 'view' | 'timezone'>, memberName?: (id: string) => string | null) {
+function displayValue(field: FieldDef, raw: unknown, ctx: Pick<ControlContext, 'view' | 'timezone'>, memberName?: (id: string) => string | null) {
   if (raw === null || raw === undefined || raw === '') return null
   switch (field.type) {
     case 'select':

@@ -34,10 +34,4 @@ export function Field({
   )
 }
 
-export function FieldValue({ children, empty = '—' }: { children?: ReactNode; empty?: ReactNode }) {
-  const isEmpty = children === null || children === undefined || children === ''
-  return <div className={cx('field__value', isEmpty && 'is-empty')}>{isEmpty ? empty : children}</div>
-}
-
-export const FieldGroup = ({ children, className }: { children: ReactNode; className?: string }) => <div className={cx('field-group', className)}>{children}</div>
 export const FieldList = ({ children }: { children: ReactNode }) => <div className="field-list">{children}</div>

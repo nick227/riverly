@@ -250,7 +250,7 @@ export class EmailService {
   }
 }
 
-export async function defaultSender(organizationId: string) {
+async function defaultSender(organizationId: string) {
   return db.senderIdentity.findFirst({
     where: { organizationId },
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
@@ -288,5 +288,3 @@ function templateOut(t: {
 
 const money = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100)
-
-export type { Prisma }

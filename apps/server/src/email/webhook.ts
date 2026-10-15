@@ -8,7 +8,7 @@ import { applyProviderEvent } from './worker'
 const TOLERANCE_SECONDS = 5 * 60
 
 /** Verifies a Svix-signed Resend webhook (https://docs.svix.com/receiving/verifying-payloads/how-manual). */
-export function verifySvix(headers: Record<string, unknown>, rawBody: string, secret: string) {
+function verifySvix(headers: Record<string, unknown>, rawBody: string, secret: string) {
   const id = String(headers['svix-id'] ?? '')
   const timestamp = String(headers['svix-timestamp'] ?? '')
   const signatures = String(headers['svix-signature'] ?? '')

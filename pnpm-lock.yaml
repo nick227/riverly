@@ -166,15 +166,9 @@ importers:
         specifier: ^7.4.4
         version: 7.4.4
     devDependencies:
-      '@types/bcryptjs':
-        specifier: ^2.4.6
-        version: 2.4.6
       '@types/node':
         specifier: ^20.16.0
         version: 20.19.43
-      bcryptjs:
-        specifier: ^2.4.3
-        version: 2.4.3
       prisma:
         specifier: ^5.22.0
         version: 5.22.0

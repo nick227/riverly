@@ -6,9 +6,9 @@ import { conflict, forbidden, notFound, unauthorized, unprocessable } from '../l
 import { rateLimit } from '../lib/rateLimit'
 import type { AuthContext } from '../lib/context'
 import { provisionOrganization } from './provisioning'
-import { uniqueSlug } from './slug'
+import { uniqueOrgSlug, uniqueSlug } from './slug'
 
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const INVITE_MIN_PASSWORD = 10
 const DUMMY_HASH = bcrypt.hashSync('timing-equalizer', 12)
 
@@ -187,22 +187,4 @@ export function organizationOut(o: {
   reviewUrl: string | null
 }) {
   return { id: o.id, name: o.name, slug: o.slug, timezone: o.timezone, logoUrl: o.logoUrl, reviewUrl: o.reviewUrl }
-}
-
-async function uniqueOrgSlug(tx: { organization: { findUnique: Function } }, name: string) {
-  const base = slugify(name) || 'company'
-  for (let i = 0; i < 50; i++) {
-    const candidate = i === 0 ? base : `${base}-${i + 1}`
-    if (!(await tx.organization.findUnique({ where: { slug: candidate } }))) return candidate
-  }
-  return `${base}-${randomToken(4).toLowerCase()}`
-}
-
-export function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
 }

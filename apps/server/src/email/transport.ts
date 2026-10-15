@@ -4,7 +4,7 @@ import type { EmailProvider } from '@project/db'
 import { config } from '../lib/config'
 import { REPO_ROOT } from '../storage'
 
-export type OutgoingEmail = {
+type OutgoingEmail = {
   messageId: string // Riverly id — also the provider idempotency key
   from: string
   replyTo?: string | null
@@ -13,11 +13,11 @@ export type OutgoingEmail = {
   text: string
 }
 
-export type SendResult =
+type SendResult =
   | { ok: true; providerMessageId: string }
   | { ok: false; retryable: boolean; code: string; summary: string }
 
-export interface EmailTransport {
+interface EmailTransport {
   readonly provider: EmailProvider
   send(email: OutgoingEmail, apiKey: string | null): Promise<SendResult>
 }
@@ -27,7 +27,7 @@ export interface EmailTransport {
  * Delivery events are simulated by the worker and labelled as such; addresses ending in
  * `@bounce.test` simulate a bounce so failure paths can be exercised locally.
  */
-export class DevLogTransport implements EmailTransport {
+class DevLogTransport implements EmailTransport {
   readonly provider = 'DEV_LOG' as const
   async send(email: OutgoingEmail): Promise<SendResult> {
     if (email.to.endsWith('@fail.test')) return { ok: false, retryable: false, code: 'dev_rejected', summary: 'Simulated provider rejection (dev)' }
@@ -42,7 +42,7 @@ export class DevLogTransport implements EmailTransport {
 }
 
 /** Resend HTTP API. The message id is passed as Idempotency-Key so retries never double-send. */
-export class ResendTransport implements EmailTransport {
+class ResendTransport implements EmailTransport {
   readonly provider = 'RESEND' as const
   async send(email: OutgoingEmail, apiKey: string | null): Promise<SendResult> {
     if (!apiKey) return { ok: false, retryable: false, code: 'no_credentials', summary: 'No Resend API key configured for this sender' }

@@ -11,7 +11,6 @@
   .card--interactive:hover { border-color: var(--color-border-strong); }
   .card__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); min-height: var(--control-height-sm); }
   .card__title { font-size: var(--text-base); font-weight: var(--weight-semibold); }
-  .card__footer { margin-top: var(--space-4); padding-top: var(--space-4); border-top: var(--border-width) solid var(--color-border); }
   .card__section + .card__section { margin-top: var(--space-5); padding-top: var(--space-5); border-top: var(--border-width) solid var(--color-border); }
 
   /* ── Field ── */

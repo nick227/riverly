@@ -18,7 +18,3 @@ export function firstStageId(def: WorkflowDefinition) {
   if (!first) throw new Error('Workflow has no active stages')
   return first.id
 }
-
-export function stageExists(def: WorkflowDefinition, stageId: string) {
-  return def.stages.some((s) => s.id === stageId)
-}

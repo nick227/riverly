@@ -118,7 +118,7 @@ export function StageWorkspace({
  * - On unconfirmed stage: says "Confirm", confirming this stage (does NOT advance to next stage).
  * - On confirmed stage: says "Unconfirm", which unconfirms this stage and any stages in front of it.
  */
-export function StageConfirmButton({
+function StageConfirmButton({
   stage,
   ctx,
   onSelectStage,

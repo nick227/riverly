@@ -55,7 +55,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   return <textarea ref={ref} className={cx('textarea', invalid && 'is-invalid', className)} aria-invalid={invalid || undefined} {...rest} />
 })
 
-export type Option = { value: string; label: string; disabled?: boolean }
+type Option = { value: string; label: string; disabled?: boolean }
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { options: Option[]; placeholder?: string; size_?: 'sm' }>(function Select(
   { options, placeholder, className, size_, ...rest },

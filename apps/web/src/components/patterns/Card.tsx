@@ -17,4 +17,3 @@ export function CardHeader({ title, actions, as: As = 'h2' }: { title: ReactNode
 }
 
 export const CardSection = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => <div className={cx('card__section', className)} {...rest} />
-export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => <div className={cx('card__footer', className)} {...rest} />

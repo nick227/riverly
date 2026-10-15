@@ -1,5 +1,5 @@
 import { db, type OpportunityStatus, type Prisma } from '@project/db'
-import { VALUE_FIELD_TYPES, type FieldDefinition, type WorkflowDefinition } from '@project/shared'
+import { VALUE_FIELD_TYPES, type WorkflowDefinition } from '@project/shared'
 import { appendActivity, transaction } from '../lib/activity'
 import { loadOpportunity, opportunityScope } from '../lib/access'
 import { hasPermission, requireOrg, type AuthContext, type OrgContext } from '../lib/context'
@@ -19,6 +19,7 @@ import {
 import { currentWorkflow } from '../lib/workflow'
 import { attachmentRefs } from './AttachmentService'
 import { messageSummariesFor } from './EmailService'
+import { validateFieldValue } from './fieldValues'
 import { assertMemberTx, assertOption, fieldIdForBinding } from './jobs'
 
 type ListQuery = {
@@ -237,26 +238,9 @@ export class OpportunityService {
     assertOption(definition, fieldIdForBinding(definition, 'opportunity.urgencyOptionId'), input.urgencyOptionId, before.urgencyOptionId)
 
     const ownerChanging = input.ownerId !== undefined && input.ownerId !== before.ownerId
-    if (ownerChanging && !hasPermission(ctx, 'jobs.assign_any')) {
-      // Members may claim an unassigned job for themselves; reassigning is a manager action.
-      const selfClaim = before.ownerId === null && input.ownerId === ctx.userId
-      if (!selfClaim) throw forbidden('Only managers can reassign jobs')
-    }
+    if (ownerChanging) assertCanAssign(ctx, before.ownerId, input.ownerId ?? null)
 
-    const data: Prisma.OpportunityUncheckedUpdateInput = {}
-    const changes: { fieldId: string; from: unknown; to: unknown }[] = []
-    for (const key of Object.keys(input) as (keyof UpdateInput)[]) {
-      let value = input[key] as unknown
-      if (value === undefined) continue
-      if (typeof value === 'string' && key !== 'ownerId') value = value.trim() || null
-      if (key === 'title' && value === null) continue
-      if (key === 'nextFollowUpAt' && value) value = new Date(value as string)
-      const prev = before[key]
-      const same = prev instanceof Date && value instanceof Date ? prev.getTime() === value.getTime() : (prev ?? null) === (value ?? null)
-      if (same) continue
-      ;(data as Record<string, unknown>)[key] = value
-      if (key !== 'ownerId') changes.push({ fieldId: fieldIdForBinding(definition, NATIVE_FIELD_OF[key]), from: prev ?? null, to: value ?? null })
-    }
+    const { data, changes } = diffNativeFields(definition, before, input)
     if (!Object.keys(data).length) return this.summary(id)
 
     await transaction(async (tx) => {
@@ -338,9 +322,7 @@ export class OpportunityService {
   /** Manual stage change, forward or backward, never gated by fields or checklists. */
   async transition(auth: AuthContext, id: string, input: { toStageId: string; reason?: string | null; idempotencyKey: string }) {
     const ctx = requireOrg(auth)
-    const existing = await db.stageTransition.findUnique({
-      where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
-    })
+    const existing = await findTransitionByKey(id, input.idempotencyKey)
     if (existing && existing.organizationId === ctx.orgId) return this.transitionResult(existing.id)
     const opp = await loadOpportunity(ctx, id)
     const workflow = await currentWorkflow(ctx.orgId)
@@ -391,9 +373,7 @@ export class OpportunityService {
       return this.transitionResult(t.id)
     } catch (err) {
       if (isUniqueViolation(err)) {
-        const again = await db.stageTransition.findUnique({
-          where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
-        })
+        const again = await findTransitionByKey(id, input.idempotencyKey)
         if (again) return this.transitionResult(again.id)
       }
       throw err
@@ -402,9 +382,7 @@ export class OpportunityService {
 
   async setStatus(auth: AuthContext, id: string, input: { status: OpportunityStatus; reason?: string | null; idempotencyKey: string }) {
     const ctx = requireOrg(auth)
-    const existing = await db.stageTransition.findUnique({
-      where: { opportunityId_idempotencyKey: { opportunityId: id, idempotencyKey: input.idempotencyKey } },
-    })
+    const existing = await findTransitionByKey(id, input.idempotencyKey)
     if (existing && existing.organizationId === ctx.orgId) return this.transitionResult(existing.id)
     const opp = await loadOpportunity(ctx, id)
     if (opp.status === input.status) throw unprocessable(`This job is already ${input.status.toLowerCase().replace('_', ' ')}`)
@@ -460,60 +438,41 @@ export class OpportunityService {
   }
 }
 
-async function validateFieldValue(orgId: string, def: WorkflowDefinition, field: FieldDefinition, v: unknown): Promise<unknown> {
-  if (v === null || v === '' || (Array.isArray(v) && v.length === 0)) return null
-  const fail = (msg: string): never => {
-    throw unprocessable(`${field.label}: ${msg}`)
+/** Members may claim an unassigned job for themselves; reassigning is a manager action. */
+function assertCanAssign(ctx: OrgContext, currentOwnerId: string | null, nextOwnerId: string | null) {
+  if (hasPermission(ctx, 'jobs.assign_any')) return
+  const selfClaim = currentOwnerId === null && nextOwnerId === ctx.userId
+  if (!selfClaim) throw forbidden('Only managers can reassign jobs')
+}
+
+/**
+ * Normalises a PATCH body against the stored job: trims text (blank → null, but a blank
+ * title is ignored), parses dates, and keeps only real changes. Returns the column update
+ * and the `job.updated` change list (owner changes are logged as their own event).
+ */
+function diffNativeFields(definition: WorkflowDefinition, before: Record<keyof UpdateInput, unknown>, input: UpdateInput) {
+  const data: Prisma.OpportunityUncheckedUpdateInput = {}
+  const changes: { fieldId: string; from: unknown; to: unknown }[] = []
+  for (const key of Object.keys(input) as (keyof UpdateInput)[]) {
+    let value = input[key] as unknown
+    if (value === undefined) continue
+    if (typeof value === 'string' && key !== 'ownerId') value = value.trim() || null
+    if (key === 'title' && value === null) continue
+    if (key === 'nextFollowUpAt' && value) value = new Date(value as string)
+    const prev = before[key]
+    if (sameValue(prev, value)) continue
+    ;(data as Record<string, unknown>)[key] = value
+    if (key !== 'ownerId') changes.push({ fieldId: fieldIdForBinding(definition, NATIVE_FIELD_OF[key]), from: prev ?? null, to: value ?? null })
   }
-  switch (field.type) {
-    case 'text':
-    case 'textarea': {
-      if (typeof v !== 'string') fail('expected text')
-      const s = (v as string).trim()
-      if (s.length > (field.type === 'text' ? 300 : 5000)) fail('too long')
-      return s || null
-    }
-    case 'date':
-      if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) fail('expected a date (YYYY-MM-DD)')
-      return v
-    case 'datetime':
-      if (typeof v !== 'string' || Number.isNaN(Date.parse(v))) fail('expected a date and time')
-      return new Date(v as string).toISOString()
-    case 'select':
-      if (typeof v !== 'string') fail('expected an option')
-      assertOption(def, field.id, v as string)
-      return v
-    case 'multi_select': {
-      if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) fail('expected a list of options')
-      const ids = [...new Set(v as string[])]
-      for (const id of ids) assertOption(def, field.id, id)
-      return ids
-    }
-    case 'boolean':
-      if (typeof v !== 'boolean') fail('expected yes or no')
-      return v
-    case 'money':
-      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) fail('expected an amount in cents')
-      return v
-    case 'member': {
-      if (typeof v !== 'string') fail('expected a team member')
-      const m = await db.membership.findUnique({ where: { organizationId_userId: { organizationId: orgId, userId: v as string } } })
-      if (!m || m.status !== 'ACTIVE') fail('not an active team member')
-      return v
-    }
-    case 'url': {
-      if (typeof v !== 'string') fail('expected a link')
-      try {
-        const u = new URL(v as string)
-        if (!['http:', 'https:'].includes(u.protocol)) fail('only http(s) links are allowed')
-        return u.toString()
-      } catch {
-        return fail('expected a full URL')
-      }
-    }
-    default:
-      return fail('not a value field')
-  }
+  return { data, changes }
+}
+
+function sameValue(prev: unknown, next: unknown) {
+  return prev instanceof Date && next instanceof Date ? prev.getTime() === next.getTime() : (prev ?? null) === (next ?? null)
+}
+
+function findTransitionByKey(opportunityId: string, idempotencyKey: string) {
+  return db.stageTransition.findUnique({ where: { opportunityId_idempotencyKey: { opportunityId, idempotencyKey } } })
 }
 
 export function appointmentOut(

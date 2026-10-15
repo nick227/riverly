@@ -26,7 +26,7 @@ const files = new AttachmentService()
 const k = () => randomUUID()
 
 /** Small deterministic PRNG so every seed run produces the same demo data. */
-export function rng(seed: number) {
+function rng(seed: number) {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0

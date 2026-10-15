@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import { idempotencyKey, useEmailTemplates, useRenderEmail, useSendEmail } from '@project/sdk'
+import { idempotencyKey, useEmailTemplates, useRenderEmail, useSendEmail, type RenderedEmail } from '@project/sdk'
 import { Button, IconButton, Input, Select, Textarea } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
 import { Field } from '@/components/patterns/Field'
@@ -14,6 +14,26 @@ export type EmailRequest = { contactId: string; opportunityId?: string | null; s
 
 const TOKEN = /\{\{\s*[a-zA-Z]+\.[a-zA-Z]+\s*\}\}/g
 const HAS_TOKEN = /\{\{\s*[a-zA-Z]+\.[a-zA-Z]+\s*\}\}/
+
+type Template = { id: string; stableKey: string }
+type Confirm = { kind: 'close' } | { kind: 'switch'; templateId: string }
+
+/** Requested template, else the first suggested one, else the first enabled one. */
+function initialTemplate<T extends Template>(enabled: T[], request: EmailRequest) {
+  return enabled.find((t) => t.stableKey === request.templateKey) ?? enabled.find((t) => request.suggestedKeys?.includes(t.stableKey)) ?? enabled[0]
+}
+
+/** The personal note goes after the greeting (the first paragraph). */
+function withPersonalNote(body: string, note: string) {
+  if (!note.trim()) return body
+  const parts = body.split('\n\n')
+  return [parts[0], note.trim(), ...parts.slice(1)].join('\n\n')
+}
+
+/** Placeholders the server could not fill; the email cannot be sent until they are replaced. */
+function unresolvedTokens(subject: string, body: string) {
+  return [...new Set([...(subject.match(TOKEN) ?? []), ...(body.match(TOKEN) ?? [])])]
+}
 
 /**
  * Universal email overlay (never a page). Opens fully prepared from real records, shows
@@ -29,7 +49,7 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
   const [note, setNote] = useState('')
   const [dirty, setDirty] = useState(false)
   const [full, setFull] = useState(false)
-  const [confirm, setConfirm] = useState<{ kind: 'close' } | { kind: 'switch'; templateId: string } | null>(null)
+  const [confirm, setConfirm] = useState<Confirm | null>(null)
   const key = useRef(idempotencyKey())
 
   const enabled = useMemo(() => (templates.data ?? []).filter((t) => t.isEnabled), [templates.data])
@@ -40,8 +60,7 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
 
   useEffect(() => {
     if (templateId || !enabled.length) return
-    const pick = enabled.find((t) => t.stableKey === request.templateKey) ?? enabled.find((t) => request.suggestedKeys?.includes(t.stableKey)) ?? enabled[0]!
-    setTemplateId(pick.id)
+    setTemplateId(initialTemplate(enabled, request)!.id)
   }, [enabled, templateId, request.templateKey, request.suggestedKeys])
 
   const rendered = useRenderEmail(templateId ? { templateId, contactId: request.contactId, opportunityId: request.opportunityId ?? null } : null)
@@ -54,23 +73,20 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
     }
   }, [preview, dirty])
 
-  const finalBody = useMemo(() => {
-    if (!note.trim()) return body
-    const parts = body.split('\n\n')
-    return [parts[0], note.trim(), ...parts.slice(1)].join('\n\n')
-  }, [body, note])
-  const remaining = [...new Set([...(subject.match(TOKEN) ?? []), ...(finalBody.match(TOKEN) ?? [])])]
+  const finalBody = useMemo(() => withPersonalNote(body, note), [body, note])
+  const remaining = unresolvedTokens(subject, finalBody)
   const blockers = preview?.blockers ?? []
   const canSend = !!preview && !blockers.length && !remaining.length && subject.trim() && finalBody.trim() && !send.isSuccess
   const isReview = preview?.templateKey === 'review_request'
   const priorSame = preview?.priorSends.filter((m) => m.templateKey === preview.templateKey) ?? []
+  const edited = dirty || !!note.trim()
 
   function requestClose() {
-    if ((dirty || note.trim()) && !send.isSuccess) setConfirm({ kind: 'close' })
+    if (edited && !send.isSuccess) setConfirm({ kind: 'close' })
     else onClose()
   }
   function switchTemplate(id: string) {
-    if (dirty || note.trim()) setConfirm({ kind: 'switch', templateId: id })
+    if (edited) setConfirm({ kind: 'switch', templateId: id })
     else applyTemplate(id)
   }
   function applyTemplate(id: string) {
@@ -78,6 +94,11 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
     setNote('')
     setTemplateId(id)
     key.current = idempotencyKey()
+  }
+  function discard(c: Confirm) {
+    setConfirm(null)
+    if (c.kind === 'close') onClose()
+    else applyTemplate(c.templateId)
   }
   function submit() {
     if (!preview) return
@@ -115,25 +136,7 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
       }
     >
       {confirm ? (
-        <div className="stack gap-4">
-          <Notice tone="warning">{confirm.kind === 'close' ? 'Discard your edits to this email?' : 'Switching templates replaces your edited message.'}</Notice>
-          <div className="action-bar">
-            <Button variant="ghost" onClick={() => setConfirm(null)}>
-              Keep editing
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                const c = confirm
-                setConfirm(null)
-                if (c.kind === 'close') onClose()
-                else applyTemplate(c.templateId)
-              }}
-            >
-              Discard edits
-            </Button>
-          </div>
-        </div>
+        <DiscardConfirm confirm={confirm} onKeep={() => setConfirm(null)} onDiscard={() => discard(confirm)} />
       ) : (
         <div className="stack gap-4">
           <Field label="Template">
@@ -158,21 +161,7 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
                   {b}
                 </Notice>
               ))}
-              <dl className="crm-email__meta">
-                <dt>From</dt>
-                <dd>
-                  {preview.sender ? (
-                    <span className="row gap-2">
-                      {preview.sender.fromName} &lt;{preview.sender.fromEmail}&gt;
-                      {preview.sender.provider === 'DEV_LOG' ? <Badge tone="warning">Development — not delivered</Badge> : null}
-                    </span>
-                  ) : (
-                    <span className="text--danger">No sender configured</span>
-                  )}
-                </dd>
-                <dt>To</dt>
-                <dd>{preview.to.email ? `${preview.to.name} <${preview.to.email}>` : <span className="text--danger">{preview.to.name} has no email address</span>}</dd>
-              </dl>
+              <EnvelopeMeta preview={preview} />
               {priorSame.length ? (
                 <Notice>
                   {isReview ? 'A review was already requested' : 'This template was already sent'} {relative(priorSame[0]!.queuedAt)} ({messageStatusLabel(priorSame[0]!.status).toLowerCase()}). Sending again creates a new message.
@@ -208,26 +197,67 @@ export function EmailModal({ request, onClose }: { request: EmailRequest; onClos
               <Field label="Personal note (optional)" hint="Added after the greeting.">
                 {(id) => <Textarea id={id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />}
               </Field>
-              {preview.priorSends.length ? (
-                <details>
-                  <summary className="text text--sm text--muted" style={{ cursor: 'pointer' }}>
-                    Earlier emails ({preview.priorSends.length})
-                  </summary>
-                  <div className="list mt-2">
-                    {preview.priorSends.map((m) => (
-                      <div key={m.id} className="list__row">
-                        <span className="text text--sm grow text--truncate">{m.subject}</span>
-                        <span className="text text--xs text--muted">{relative(m.queuedAt)}</span>
-                        <Badge tone={messageStatusTone(m.status)}>{messageStatusLabel(m.status)}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              ) : null}
+              <EarlierEmails sends={preview.priorSends} />
             </>
           )}
         </div>
       )}
     </Overlay>
+  )
+}
+
+function DiscardConfirm({ confirm, onKeep, onDiscard }: { confirm: Confirm; onKeep: () => void; onDiscard: () => void }) {
+  return (
+    <div className="stack gap-4">
+      <Notice tone="warning">{confirm.kind === 'close' ? 'Discard your edits to this email?' : 'Switching templates replaces your edited message.'}</Notice>
+      <div className="action-bar">
+        <Button variant="ghost" onClick={onKeep}>
+          Keep editing
+        </Button>
+        <Button variant="danger" onClick={onDiscard}>
+          Discard edits
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function EnvelopeMeta({ preview }: { preview: RenderedEmail }) {
+  return (
+    <dl className="crm-email__meta">
+      <dt>From</dt>
+      <dd>
+        {preview.sender ? (
+          <span className="row gap-2">
+            {preview.sender.fromName} &lt;{preview.sender.fromEmail}&gt;
+            {preview.sender.provider === 'DEV_LOG' ? <Badge tone="warning">Development — not delivered</Badge> : null}
+          </span>
+        ) : (
+          <span className="text--danger">No sender configured</span>
+        )}
+      </dd>
+      <dt>To</dt>
+      <dd>{preview.to.email ? `${preview.to.name} <${preview.to.email}>` : <span className="text--danger">{preview.to.name} has no email address</span>}</dd>
+    </dl>
+  )
+}
+
+function EarlierEmails({ sends }: { sends: RenderedEmail['priorSends'] }) {
+  if (!sends.length) return null
+  return (
+    <details>
+      <summary className="text text--sm text--muted" style={{ cursor: 'pointer' }}>
+        Earlier emails ({sends.length})
+      </summary>
+      <div className="list mt-2">
+        {sends.map((m) => (
+          <div key={m.id} className="list__row">
+            <span className="text text--sm grow text--truncate">{m.subject}</span>
+            <span className="text text--xs text--muted">{relative(m.queuedAt)}</span>
+            <Badge tone={messageStatusTone(m.status)}>{messageStatusLabel(m.status)}</Badge>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }

@@ -83,6 +83,8 @@ centralised in `apps/server/src/lib/access.ts` so assigned-only can be switched 
 - `pnpm pages:generate` intentionally NOT used: per-endpoint CRUD stubs contradict the Frontend
   Standards. UI = `apps/web/src/features/crm/{components,views}` composed from
   `components/{primitives,patterns}`; plain CSS in `src/styles` (layers + tokens, dark = token override).
+- Fallow (`npx fallow`) config in `.fallowrc.jsonc`: handler exports are runtime-registered by
+  operationId (pinned by `handlers.test.ts`), generated SDK types are excluded from dupes.
 - System font stack (no Google Fonts — external font requests stalled and the spec allows system-ui).
 - E2E (`pnpm --filter web test:e2e`) reseeds the demo data in globalSetup (`E2E_SKIP_SEED=1` to skip).
 
@@ -90,13 +92,13 @@ centralised in `apps/server/src/lib/access.ts` so assigned-only can be switched 
 
 Phase 6 — Documentation. All phases 1–6 built; awaiting developer browser verification.
 
-Verified: 198 server tests, 8 shared tests, 8 Playwright e2e (desktop + mobile), typecheck clean,
+Verified: 206 server tests, 8 shared tests, 10 Playwright e2e (desktop + mobile), typecheck clean,
 OpenAPI lint clean, SDK no drift, migrations apply cleanly, production single-origin mode smoke-tested
 locally.
 
 Not verified here (no Docker / no credentials on this machine): `docker build`, Railway deploy, live
 Resend sending + webhooks (code path covered by tests with signed fixtures), S3 bucket driver,
-MySQL 8 itself (local is MariaDB 10.11; CI runs MySQL 8). `npx fallow` not run.
+MySQL 8 itself (local is MariaDB 10.11; CI runs MySQL 8).
 
 ## Open decisions (from the specs — do not silently decide)
 

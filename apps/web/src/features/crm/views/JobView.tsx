@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
-import { useContact, useOpportunity, useResources, useTransitionOpportunity } from '@project/sdk'
+import { useContact, useOpportunity, useResources, useTransitionOpportunity, type OpportunityDetail } from '@project/sdk'
 import { Badge } from '@/components/patterns/Badge'
 import { toast } from '@/components/patterns/Toast'
 import { ErrorState, PageState, Skeleton } from '@/components/patterns/States'
@@ -16,7 +16,7 @@ import { PipelineBar } from '../components/PipelineBar'
 import { ScheduleOverlay } from '../components/StageControls'
 import { StageWorkspace } from '../components/StageWorkspace'
 import { statusLabel, statusTone } from '../config/labels'
-import { useWorkflowView } from '../config/workflow'
+import { useWorkflowView, type WorkflowView } from '../config/workflow'
 
 /**
  * Individual contact workflow / job detail page.
@@ -40,13 +40,7 @@ export default function JobView() {
   const selectedStageId = params.get('stage') ?? data?.stageId ?? ''
   const selected = view?.stage(selectedStageId) ?? view?.stage(data?.stageId)
 
-  const stageMeta = useMemo(() => {
-    const meta: Record<string, string> = {}
-    for (const t of [...(data?.transitions ?? [])].reverse()) {
-      if (t.kind !== 'STATUS') meta[t.toStageId] = dateOnly(t.occurredAt, org?.timezone) ?? ''
-    }
-    return meta
-  }, [data?.transitions, org?.timezone])
+  const stageMeta = useMemo(() => stageReachedDates(data?.transitions ?? [], org?.timezone), [data?.transitions, org?.timezone])
 
   if (job.isLoading || !view) return <JobSkeleton />
   if (job.error || !data) return <div className="crm-page"><ErrorState error={job.error} onRetry={() => void job.refetch()} /></div>
@@ -69,41 +63,18 @@ export default function JobView() {
   }
 
   const toggleStage = (stageId: string) => {
-    const targetIndex = view.active.findIndex((s) => s.id === stageId)
-    const currentIdx = view.stageIndex(data.stageId)
-    if (targetIndex < 0) return
-
-    if (targetIndex > currentIdx) {
-      // Unconfirmed stage: confirm up to this stage (do not advance past it)
-      transition.mutate(
-        { toStageId: stageId, reason: null },
-        {
-          onSuccess: () => {
-            toast.success(`Confirmed ${view.stageLabel(stageId)}`)
-            selectStage(stageId)
-          },
-          onError: (e) => toast.error(e),
+    const move = stageToggleMove(view.active, view.stageIndex(data.stageId), stageId)
+    if (!move) return
+    transition.mutate(
+      { toStageId: move.toStageId, reason: null },
+      {
+        onSuccess: () => {
+          toast.success(move.message)
+          selectStage(move.toStageId)
         },
-      )
-    } else {
-      // Confirmed stage: unconfirm this stage and any in front of it
-      if (targetIndex === 0 && currentIdx === 0) {
-        return
-      }
-      const targetStage = (targetIndex > 0 ? view.active[targetIndex - 1] : view.active[0]) ?? view.active[0]
-      if (!targetStage) return
-
-      transition.mutate(
-        { toStageId: targetStage.id, reason: null },
-        {
-          onSuccess: () => {
-            toast.success(`Unconfirmed stages in front of ${targetStage.label}`)
-            selectStage(targetStage.id)
-          },
-          onError: (e) => toast.error(e),
-        },
-      )
-    }
+        onError: (e) => toast.error(e),
+      },
+    )
   }
 
   const pipelineStages = selected.retired ? [...view.active, selected] : view.active
@@ -111,22 +82,7 @@ export default function JobView() {
   return (
     <main className="crm-page">
       <div className="crm-job__top">
-        <div className="crm-job__titlebar">
-          <div className="stack gap-1">
-            <Link to="/contacts" className="row gap-1 text text--sm text--muted">
-              <ChevronLeft size={14} aria-hidden /> Contacts
-            </Link>
-            <div className="row row--wrap gap-3 items-center">
-              <h1 className="heading heading--2">{data.contact.name}</h1>
-              {data.status !== 'OPEN' ? <Badge tone={statusTone(data.status)}>{statusLabel(data.status)}</Badge> : null}
-            </div>
-            <span className="text text--sm text--muted">
-              {data.title && data.title !== data.contact.name ? `${data.title} · ` : ''}
-              {data.propertyAddress ? `${data.propertyAddress} · ` : ''}
-              {view.terms.opportunity.toLowerCase()} opened {dateOnly(data.leadReceivedAt, org?.timezone)}
-            </span>
-          </div>
-        </div>
+        <JobTitleBar job={data} view={view} timezone={org?.timezone} />
         <div className="crm-job__pipeline-sticky">
           <PipelineBar
             stages={pipelineStages}
@@ -175,6 +131,50 @@ export default function JobView() {
         />
       ) : null}
     </main>
+  )
+}
+
+/** Date each stage was last entered, for the pipeline bar (latest transition wins). */
+function stageReachedDates(transitions: OpportunityDetail['transitions'], timezone?: string) {
+  const meta: Record<string, string> = {}
+  for (const t of [...transitions].reverse()) {
+    if (t.kind !== 'STATUS') meta[t.toStageId] = dateOnly(t.occurredAt, timezone) ?? ''
+  }
+  return meta
+}
+
+/**
+ * Pipeline toggle: clicking a stage ahead of the current one confirms up to it (never past);
+ * clicking a confirmed stage unconfirms it and everything after, moving back one stage.
+ */
+function stageToggleMove(active: WorkflowView['active'], currentIdx: number, stageId: string) {
+  const targetIndex = active.findIndex((s) => s.id === stageId)
+  if (targetIndex < 0) return null
+  if (targetIndex > currentIdx) return { toStageId: stageId, message: `Confirmed ${active[targetIndex]!.label}` }
+  if (targetIndex === 0 && currentIdx === 0) return null
+  const back = (targetIndex > 0 ? active[targetIndex - 1] : active[0]) ?? active[0]
+  if (!back) return null
+  return { toStageId: back.id, message: `Unconfirmed stages in front of ${back.label}` }
+}
+
+function JobTitleBar({ job, view, timezone }: { job: OpportunityDetail; view: WorkflowView; timezone?: string }) {
+  return (
+    <div className="crm-job__titlebar">
+      <div className="stack gap-1">
+        <Link to="/contacts" className="row gap-1 text text--sm text--muted">
+          <ChevronLeft size={14} aria-hidden /> Contacts
+        </Link>
+        <div className="row row--wrap gap-3 items-center">
+          <h1 className="heading heading--2">{job.contact.name}</h1>
+          {job.status !== 'OPEN' ? <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge> : null}
+        </div>
+        <span className="text text--sm text--muted">
+          {job.title && job.title !== job.contact.name ? `${job.title} · ` : ''}
+          {job.propertyAddress ? `${job.propertyAddress} · ` : ''}
+          {view.terms.opportunity.toLowerCase()} opened {dateOnly(job.leadReceivedAt, timezone)}
+        </span>
+      </div>
+    </div>
   )
 }
 

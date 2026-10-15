@@ -4,7 +4,7 @@ import { config } from '../lib/config'
 
 type Tx = Prisma.TransactionClient
 
-export const DEFAULT_RECOGNITION_TYPES = [
+const DEFAULT_RECOGNITION_TYPES = [
   { key: 'thank_you', label: 'Thank you', emoji: '🙏' },
   { key: 'clutch', label: 'Clutch save', emoji: '🛟' },
   { key: 'customer_love', label: 'Customer love', emoji: '💬' },

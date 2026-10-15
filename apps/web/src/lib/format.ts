@@ -48,5 +48,3 @@ export function dollarsToCents(value: string) {
 }
 
 export const centsToDollars = (cents: number | null | undefined) => (cents === null || cents === undefined ? '' : String(cents / 100))
-
-export const fileSize = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`)

@@ -6,11 +6,10 @@ import { forbidden, notFound, unprocessable } from '../lib/errors'
 import { isUniqueViolation } from '../lib/idempotency'
 import { decodeCursor, encodeCursor, normalizeLimit } from '../lib/pagination'
 import { rateLimit } from '../lib/rateLimit'
-import { userSummary, usersById } from '../lib/serialize'
+import { recognitionsOut, userSummary, usersById } from '../lib/serialize'
 import { currentWorkflow } from '../lib/workflow'
 import { linkPendingAttachments, refOut } from './AttachmentService'
 import { messageSummariesFor } from './EmailService'
-import { recognitionsOut } from './ProfileService'
 
 type ListQuery = {
   cursor?: string

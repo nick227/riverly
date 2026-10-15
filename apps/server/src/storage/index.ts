@@ -10,7 +10,7 @@ import { hmac, safeEqual } from '../lib/crypto'
 // Relative paths in env resolve from the repository root regardless of the process cwd.
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..')
 
-export const SIGNED_URL_TTL_SECONDS = 15 * 60
+const SIGNED_URL_TTL_SECONDS = 15 * 60
 
 export interface StorageDriver {
   readonly kind: 'local' | 's3'
@@ -83,7 +83,7 @@ class S3Storage implements StorageDriver {
   }
 }
 
-export function signFile(attachmentId: string, expires: number) {
+function signFile(attachmentId: string, expires: number) {
   return hmac(`file:${attachmentId}:${expires}`)
 }
 

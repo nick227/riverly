@@ -13,7 +13,7 @@ import { ensureSource } from './sources'
 
 type Tx = Prisma.TransactionClient
 
-export const IMPORT_TARGETS = [
+const IMPORT_TARGETS = [
   'name',
   'firstName',
   'lastName',
@@ -58,6 +58,14 @@ type Proposed = {
 
 type IngestResult = { status: 'NEW_CONTACT' | 'LINKED_EXISTING' | 'PENDING_REVIEW' | 'DUPLICATE_RECORD'; contactId: string | null; opportunityId: string | null }
 
+type Tally = { rowsSeen: number; created: number; linked: number; duplicatesFlagged: number; errors: number; skipped: number }
+const TALLY_FOR: Record<IngestResult['status'], keyof Tally> = {
+  NEW_CONTACT: 'created',
+  LINKED_EXISTING: 'linked',
+  PENDING_REVIEW: 'duplicatesFlagged',
+  DUPLICATE_RECORD: 'skipped',
+}
+
 export class IntakeService {
   async listSources(auth: AuthContext) {
     const ctx = requireOrg(auth)
@@ -74,12 +82,7 @@ export class IntakeService {
     requirePermission(auth, 'imports.run')
     const rows = parseCsv(input.csv)
     const headers = rows[0]!
-    const suggestedMapping: Record<string, string> = {}
-    for (const target of IMPORT_TARGETS) {
-      const header = headers.find((h) => SYNONYMS[target].includes(h.trim().toLowerCase()))
-      if (header) suggestedMapping[target] = header
-    }
-    if (suggestedMapping.firstName && suggestedMapping.name === undefined) delete suggestedMapping.name
+    const suggestedMapping = suggestMapping(headers)
     return { headers, sampleRows: rows.slice(1, 6), suggestedMapping, rowCount: rows.length - 1, targetFields: [...IMPORT_TARGETS] }
   }
 
@@ -95,12 +98,8 @@ export class IntakeService {
     const ctx = requirePermission(auth, 'imports.run')
     const rows = parseCsv(input.csv)
     const headers = rows[0]!
-    const mapping = input.mapping ?? (await this.preview(auth, { csv: input.csv })).suggestedMapping
-    for (const [target, header] of Object.entries(mapping)) {
-      if (!(IMPORT_TARGETS as readonly string[]).includes(target)) throw unprocessable(`Unknown import field "${target}"`)
-      if (!headers.includes(header)) throw unprocessable(`Column "${header}" is not in the file`)
-    }
-    if (!mapping.name && !mapping.firstName) throw unprocessable('Map a column to Name (or First name)')
+    const mapping = input.mapping ?? suggestMapping(headers)
+    assertMapping(mapping, headers)
     const workflow = await currentWorkflow(ctx.orgId)
     const sourceName = input.sourceName?.trim() || input.fileName
     const source = await db.$transaction((tx) => ensureSource(tx, ctx.orgId, 'CSV', sourceName))
@@ -114,14 +113,14 @@ export class IntakeService {
         createdById: ctx.userId,
       },
     })
-    const tally = { rowsSeen: 0, created: 0, linked: 0, duplicatesFlagged: 0, errors: 0, skipped: 0 }
+    const tally: Tally = { rowsSeen: 0, created: 0, linked: 0, duplicatesFlagged: 0, errors: 0, skipped: 0 }
+    const defaultJobTitle = input.createJobs ? input.defaultJobTitle?.trim() || 'Imported job' : null
     for (let i = 1; i < rows.length; i++) {
       tally.rowsSeen++
       const raw = Object.fromEntries(headers.map((h, j) => [h, rows[i]![j] ?? '']))
       try {
-        const proposed = proposeFromRow(raw, mapping, input.createJobs ? (input.defaultJobTitle?.trim() || 'Imported job') : null)
-        if (!proposed.contact.name) throw unprocessable('Row has no name')
-        if (!proposed.contact.email && !proposed.contact.phone && !proposed.contact.addressLine) throw unprocessable('Row needs an email, phone or address')
+        const proposed = proposeFromRow(raw, mapping, defaultJobTitle)
+        assertImportable(proposed)
         const result = await transaction((tx) =>
           ingest(tx, {
             organizationId: ctx.orgId,
@@ -136,10 +135,7 @@ export class IntakeService {
             announceReview: false,
           }),
         )
-        if (result.status === 'NEW_CONTACT') tally.created++
-        else if (result.status === 'LINKED_EXISTING') tally.linked++
-        else if (result.status === 'PENDING_REVIEW') tally.duplicatesFlagged++
-        else tally.skipped++
+        tally[TALLY_FOR[result.status]]++
       } catch (err) {
         tally.errors++
         await db.importIssue.create({
@@ -147,7 +143,7 @@ export class IntakeService {
         })
       }
     }
-    const state = tally.errors === 0 ? 'SUCCEEDED' : tally.errors === tally.rowsSeen ? 'FAILED' : 'PARTIALLY_COMPLETED'
+    const state = runState(tally)
     await transaction(async (tx) => {
       await tx.importRun.update({
         where: { id: run.id },
@@ -348,6 +344,34 @@ export class IntakeService {
 }
 
 /** Shared ingestion for CSV rows and form submissions. */
+/** Maps file headers to import fields by common column names. */
+function suggestMapping(headers: string[]) {
+  const mapping: Record<string, string> = {}
+  for (const target of IMPORT_TARGETS) {
+    const header = headers.find((h) => SYNONYMS[target].includes(h.trim().toLowerCase()))
+    if (header) mapping[target] = header
+  }
+  return mapping
+}
+
+function assertMapping(mapping: Record<string, string>, headers: string[]) {
+  for (const [target, header] of Object.entries(mapping)) {
+    if (!(IMPORT_TARGETS as readonly string[]).includes(target)) throw unprocessable(`Unknown import field "${target}"`)
+    if (!headers.includes(header)) throw unprocessable(`Column "${header}" is not in the file`)
+  }
+  if (!mapping.name && !mapping.firstName) throw unprocessable('Map a column to Name (or First name)')
+}
+
+function assertImportable({ contact }: Proposed) {
+  if (!contact.name) throw unprocessable('Row has no name')
+  if (!contact.email && !contact.phone && !contact.addressLine) throw unprocessable('Row needs an email, phone or address')
+}
+
+function runState(tally: Tally) {
+  if (tally.errors === 0) return 'SUCCEEDED' as const
+  return tally.errors === tally.rowsSeen ? ('FAILED' as const) : ('PARTIALLY_COMPLETED' as const)
+}
+
 async function ingest(
   tx: Tx,
   a: {
