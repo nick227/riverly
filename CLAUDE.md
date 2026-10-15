@@ -70,8 +70,12 @@ centralised in `apps/server/src/lib/access.ts` so assigned-only can be switched 
   preHandler to `onRequest` so auth runs before body validation (anonymous callers get 401, never 400).
 - Tests use the real security handler with real session tokens (not the template's fake handler), against
   `riverly_test` reset with `prisma migrate reset` once per run (globalSetup) and truncated per file.
-- Seed lives in `apps/server/src/seed.ts` (uses the real services under a seeded clock); `pnpm db:seed`
-  runs it, `pnpm db:seed -- --reset` wipes dev data first. Demo password: `riverly-demo-2026`.
+- Seed lives in `apps/server/src/seed/` (`data.ts` people + scenarios, `story.ts` walks each job through
+  the real services under a seeded clock, `media.ts` generates photos/PDFs). `pnpm db:seed` (no-op if
+  present), `pnpm db:seed:reset` (wipe + reload). Production needs `ALLOW_DEMO_SEED=true`; a production
+  reset also needs `--confirm-wipe`. Railway: `railway ssh --environment staging --service riverly --
+  pnpm db:seed`. Demo password: `riverly-demo-2026`. Playwright relies on Maria Santos/Angela Ruiz/
+  Robert Hale (Jake/Nina) and Walter Grey (Summit) — keep them.
 
 - **Single origin in production:** API under `API_PREFIX=/api`, Fastify serves `apps/web/dist`
   (`SERVE_WEB_DIR`). Dev: web http://localhost:5180 (strictPort; 5173 is used by another local

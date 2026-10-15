@@ -9,7 +9,7 @@
     "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "seed": "dotenv -e ../../.env -- tsx src/seed.ts"
+    "seed": "dotenv -e ../../.env -- tsx src/seed/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.670.0",

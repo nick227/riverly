@@ -36,6 +36,40 @@ Serving the web app and API from one origin keeps the session cookie first-party
 
 4. Generate a domain. Health check: `GET /api/health` (checks the database too).
 
+## Demo data
+
+The demo seed (`apps/server/src/seed/`) loads every role, one fully populated company and a second
+company for isolation tests — see the README for logins. It runs through the real services, so it
+also exercises storage (photos/PDFs go to the bucket) and the email pipeline (simulated sender only;
+seeded emails never leave the system).
+
+**Use a dedicated test/staging environment**, not the environment real customers use.
+
+1. In Railway, create (or duplicate into) a `staging` environment with its own MySQL and bucket.
+2. On the riverly service in that environment set `ALLOW_DEMO_SEED=true`.
+   Without it the seed refuses to run when `NODE_ENV=production`.
+3. Deploy (the pre-deploy step applies migrations), then load the data inside the running container:
+
+```bash
+railway link                                   # once: pick the project
+railway ssh --environment staging --service riverly -- pnpm db:seed
+```
+
+Re-seeding from scratch wipes **every table** in that environment's database, so it needs an extra flag:
+
+```bash
+railway ssh --environment staging --service riverly -- pnpm db:seed -- --reset --confirm-wipe
+```
+
+The seed is idempotent: if the demo company already exists it does nothing.
+When you are done testing, remove `ALLOW_DEMO_SEED` again.
+
+Why `railway ssh`: the command runs inside the deployed container, so it uses the service's
+internal `DATABASE_URL`, the bucket credentials and the same code version — nothing to configure
+locally. (Alternative: `railway run --environment staging -- pnpm db:seed` from your machine, but
+then `DATABASE_URL` must be the MySQL service's *public* URL, `${{MySQL.MYSQL_PUBLIC_URL}}`, and
+uploads go to the bucket from your laptop.)
+
 ## Email (real sending + delivery tracking)
 
 1. In the company's (or platform's) **Resend** account, add and verify the sending domain (DNS records).

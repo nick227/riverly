@@ -48,7 +48,7 @@ cp .env.example .env             # defaults work for local development
 ```bash
 pnpm install
 pnpm db:migrate:deploy           # apply committed migrations
-pnpm db:seed                     # demo company (add `-- --reset` to start over)
+pnpm db:seed                     # demo users + data (`pnpm db:seed:reset` to start over)
 ```
 
 Or all at once: `pnpm bootstrap`.
@@ -66,15 +66,8 @@ pnpm dev
 | API docs (Swagger UI, dev only) | http://localhost:3001/docs |
 | Dev email outbox | `.data/outbox/*.txt` |
 
-Demo logins (password `riverly-demo-2026`):
-
-| Email | Role |
-|---|---|
-| chris@nvcustomhomes.test | Owner |
-| dana@nvcustomhomes.test | Admin |
-| marcus@nvcustomhomes.test | Manager |
-| nina@nvcustomhomes.test, jake@nvcustomhomes.test | Members |
-| sara@summitroofing.test | Owner of a second company (isolation check) |
+Demo logins: see the [README](../README.md#demo-accounts). Reload the demo data any time with
+`pnpm db:seed:reset` (wipes the local database first).
 
 ## Tests
 

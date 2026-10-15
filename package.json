@@ -27,6 +27,7 @@
     "db:migrate:status": "pnpm --filter @project/db db:migrate:status",
     "db:validate": "pnpm --filter @project/db db:validate",
     "db:seed": "pnpm --filter server seed",
+    "db:seed:reset": "pnpm --filter server seed -- --reset",
     "db:studio": "pnpm --filter @project/db db:studio"
   },
   "devDependencies": {

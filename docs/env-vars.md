@@ -29,3 +29,4 @@
 | `RESEND_API_KEY` | Yes | — |
 | `RESEND_WEBHOOK_SECRET` | Yes | — |
 | `VITE_API_URL` | Yes | — |
+| `ALLOW_DEMO_SEED` | Yes | — |
