@@ -101,6 +101,25 @@ test.describe('roles', () => {
     await expect(dialog).toHaveCount(0)
   })
 
+  test('contacts rows: assign and change status in place', async ({ page }) => {
+    await loginAs(page, USERS.manager)
+    const row = page.locator('.crm-job-row').nth(1)
+    const owner = row.getByRole('combobox', { name: /Assigned to for/ })
+    await expect(owner).toBeEnabled()
+    expect(await owner.locator('option').count()).toBeGreaterThan(2)
+    const status = row.getByRole('combobox', { name: /Status for/ })
+    await expect(status).toHaveValue('OPEN')
+    await status.selectOption('LOST')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: 'Mark lost' })).toBeDisabled()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(status).toHaveValue('OPEN')
+    // The name still opens the job.
+    await row.locator('.crm-job-row__link').click()
+    await expect(page).toHaveURL(/\/jobs\//)
+  })
+
   test('admins can open the workflow editor', async ({ page }) => {
     await loginAs(page, USERS.admin)
     await page.goto('/settings/workflow')

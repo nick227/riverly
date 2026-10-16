@@ -12,13 +12,13 @@ import { Overlay } from '@/components/patterns/Overlay'
 import { Segmented } from '@/components/patterns/Segmented'
 import { EmptyState, ErrorState, Notice, SkeletonList } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
-import { dateTime, fromLocalInput, money, relative } from '@/lib/format'
+import { dateTime, fromLocalInput, relative } from '@/lib/format'
 import { useSession } from '@/lib/session'
 import { useDebounce } from '@/lib/useDebounce'
 import { ImportDialog } from '../components/ImportDialog'
+import { OwnerSelect, StatusSelect } from '../components/JobRowControls'
 import { MemberSelect } from '../components/MemberSelect'
 import { PipelineBar } from '../components/PipelineBar'
-import { statusLabel, statusTone } from '../config/labels'
 import { useWorkflowView, type WorkflowView } from '../config/workflow'
 
 type Sort = 'recent' | 'oldest' | 'stale'
@@ -145,7 +145,7 @@ export default function ContactsView() {
               <span>Assigned to</span>
               <span>Reference</span>
               <span>Created</span>
-              <span className="crm-job-row__value">Value</span>
+              <span>Status</span>
             </div>
             {list.map((j) => (
               <JobRow key={j.id} job={j} view={view} />
@@ -166,35 +166,27 @@ export default function ContactsView() {
 
 /**
  * One job per row, aligned to the column header: who + what, the segment pipeline, then
- * owner, lead reference, created time and value. Empty values stay empty — no filler text.
+ * owner and status (both editable in place), lead reference and created time. The name is
+ * the link and stretches over the row, so the dropdowns stay usable without navigating.
  */
 function JobRow({ job, view }: { job: OpportunitySummary; view: WorkflowView }) {
-  const value = job.contractValueCents ?? job.estimatedValueCents
   const overdue = job.nextFollowUpAt && new Date(job.nextFollowUpAt).getTime() < Date.now()
   const source = view.bindingOptionLabel('opportunity.leadSourceOptionId', job.leadSourceOptionId)
   return (
-    <Link to={`/jobs/${job.id}`} className="crm-job-row">
+    <div className="crm-job-row">
       <span className="crm-job-row__who">
         <Avatar name={job.contactName} size="sm" />
-        <span className="crm-job-row__text">
+        <Link to={`/jobs/${job.id}`} className="crm-job-row__text crm-job-row__link">
           <span className="crm-job-row__name">
             {job.contactName}
-            {job.status !== 'OPEN' ? <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge> : null}
             {overdue ? <Badge tone="warning">Follow-up due</Badge> : null}
           </span>
           <span className="crm-job-row__detail">{job.title}</span>
-        </span>
+        </Link>
       </span>
       <PipelineBar stages={view.active} currentStageId={job.stageId} compact label={`${job.contactName} pipeline`} />
-      <span className="crm-job-row__cell" data-label="Assigned to">
-        {job.owner ? (
-          <>
-            <Avatar name={job.owner.displayName} src={job.owner.avatarUrl} size="sm" />
-            <span className="text--truncate">{job.owner.displayName}</span>
-          </>
-        ) : (
-          <span className="text--muted">Unassigned</span>
-        )}
+      <span className="crm-job-row__cell crm-job-row__control" data-label="Assigned to">
+        <OwnerSelect job={job} />
       </span>
       <span className="crm-job-row__cell text--muted" data-label="Reference">
         <span className="text--truncate">{source ?? ''}</span>
@@ -202,8 +194,10 @@ function JobRow({ job, view }: { job: OpportunitySummary; view: WorkflowView }) 
       <span className="crm-job-row__cell text--muted" data-label="Created" title={dateTime(job.leadReceivedAt) ?? undefined}>
         {relative(job.leadReceivedAt)}
       </span>
-      <span className="crm-job-row__cell crm-job-row__value">{value !== null ? money(value) : ''}</span>
-    </Link>
+      <span className="crm-job-row__cell crm-job-row__control crm-job-row__status">
+        <StatusSelect job={job} />
+      </span>
+    </div>
   )
 }
 
