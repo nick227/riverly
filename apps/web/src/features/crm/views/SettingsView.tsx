@@ -5,9 +5,7 @@ import { useSession } from '@/lib/session'
 import { CompanySettings } from './settings/CompanySettings'
 import { TeamSettings } from './settings/TeamSettings'
 import { WorkflowSettings } from './settings/WorkflowSettings'
-import { ResourceSettings } from './settings/ResourceSettings'
 import { EmailSettings } from './settings/EmailSettings'
-import { IntakeSettings } from './settings/IntakeSettings'
 import { ReportsSettings } from './settings/ReportsSettings'
 import { DiagnosticsSettings } from './settings/DiagnosticsSettings'
 
@@ -15,9 +13,7 @@ const SECTIONS: { path: string; label: string; permission: Permission; element: 
   { path: 'company', label: 'Company', permission: 'settings.manage', element: <CompanySettings /> },
   { path: 'team', label: 'Team', permission: 'settings.manage', element: <TeamSettings /> },
   { path: 'workflow', label: 'Workflow', permission: 'settings.manage', element: <WorkflowSettings /> },
-  { path: 'resources', label: 'Resources', permission: 'settings.manage', element: <ResourceSettings /> },
   { path: 'email', label: 'Email', permission: 'settings.manage', element: <EmailSettings /> },
-  { path: 'intake', label: 'Lead intake', permission: 'settings.manage', element: <IntakeSettings /> },
   { path: 'reports', label: 'Reports', permission: 'reports.view', element: <ReportsSettings /> },
   { path: 'diagnostics', label: 'Diagnostics', permission: 'diagnostics.view', element: <DiagnosticsSettings /> },
 ]

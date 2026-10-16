@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus } from 'lucide-react'
-import type { OptionDef, StageDef, WorkflowDefinition } from '@project/sdk'
+import type { StageDef, WorkflowDefinition } from '@project/sdk'
 import { usePublishWorkflow, useWorkflow } from '@project/sdk'
 import { Button, IconButton, Input, Select, Textarea } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
@@ -24,13 +24,10 @@ function uniqueId(base: string, taken: string[]) {
   return id
 }
 
-const VOCABULARY = { opportunity: 'Job', contact: 'Contact', owner: 'Owner role', activity: 'Activity' } as const
-
 /**
  * Edits a draft of the published definition and publishes an immutable new version.
- * Only the workflow itself is editable here (stages, field options, vocabulary); everything
- * else in the definition (field wiring, contact attempt choices, IDs) is predefined and
- * published back unchanged. Removal is "retire", never delete.
+ * Only the stages are editable here; everything else in the definition (fields and their
+ * options, vocabulary, contact attempt choices, IDs) is predefined and published back unchanged. Removal is "retire", never delete.
  */
 export function WorkflowSettings() {
   const wf = useWorkflow()
@@ -50,7 +47,6 @@ export function WorkflowSettings() {
 
   const stages = [...draft.stages].sort((a, b) => a.order - b.order)
   const active = stages.filter((s) => !s.retired)
-  const optionFields = draft.fields.filter((f) => !f.retired && (f.type === 'select' || f.type === 'multi_select'))
   const needsMapping = stages.filter((s) => s.retired && !wf.data!.definition.stages.find((p) => p.id === s.id)?.retired && (counts[s.id] ?? 0) > 0)
 
   const update = (fn: (d: WorkflowDefinition) => void) =>
@@ -173,31 +169,6 @@ export function WorkflowSettings() {
           ))}
         </div>
       </Card>
-
-      <Card>
-        <CardHeader title="Field options" />
-        <div className="grid grid--2 gap-6">
-          {optionFields.map((f) => (
-            <OptionsEditor
-              key={f.id}
-              label={f.label}
-              options={f.options ?? []}
-              onChange={(options) => update((d) => (d.fields.find((x) => x.id === f.id)!.options = options))}
-            />
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Vocabulary" />
-        <div className="grid grid--4 gap-4">
-          {(Object.keys(VOCABULARY) as (keyof typeof VOCABULARY)[]).map((k) => (
-            <Field key={k} label={VOCABULARY[k]}>
-              {(id) => <Input id={id} value={draft.terminology[k]} onChange={(e) => update((d) => (d.terminology[k] = e.target.value))} />}
-            </Field>
-          ))}
-        </div>
-      </Card>
     </div>
   )
 }
@@ -208,36 +179,5 @@ function StageInstructions({ stage, onChange }: { stage: StageDef; onChange: (in
     <Field label="Instructions for the team" hint="Optional. Shown on the stage; never a required checklist.">
       {(id) => <Textarea id={id} rows={2} value={stage.instructions ?? stage.description ?? ''} onChange={(e) => onChange(e.target.value || undefined)} maxLength={1000} />}
     </Field>
-  )
-}
-
-function OptionsEditor({ label, options, onChange }: { label: string; options: OptionDef[]; onChange: (o: OptionDef[]) => void }) {
-  const [adding, setAdding] = useState('')
-  return (
-    <div className="stack gap-2">
-      <span className="field__label">{label}</span>
-      {options.map((o, i) => (
-        <div key={o.id} className="row gap-2">
-          <Input size_="sm" aria-label={`${label} option ${i + 1}`} value={o.label} disabled={o.retired} onChange={(e) => onChange(options.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ maxWidth: 260 }} />
-          {o.retired ? <Badge tone="outline">Retired</Badge> : null}
-          <Button size="sm" variant="ghost" onClick={() => onChange(options.map((x, j) => (j === i ? { ...x, retired: !x.retired } : x)))}>
-            {o.retired ? 'Restore' : 'Retire'}
-          </Button>
-        </div>
-      ))}
-      <div className="row gap-2">
-        <Input size_="sm" aria-label={`New ${label.toLowerCase()} option`} placeholder="Add option" value={adding} onChange={(e) => setAdding(e.target.value)} style={{ maxWidth: 260 }} />
-        <Button
-          size="sm"
-          disabled={!adding.trim()}
-          onClick={() => {
-            onChange([...options, { id: uniqueId(adding, options.map((o) => o.id)), label: adding.trim() }])
-            setAdding('')
-          }}
-        >
-          Add
-        </Button>
-      </div>
-    </div>
   )
 }
