@@ -60,10 +60,13 @@ test.describe('job workflow', () => {
 })
 
 test.describe('roles', () => {
-  test('managers get the attention rail on Activity and only Reports in Settings', async ({ page }) => {
+  test('managers see the sales board on Activity and only Reports in Settings', async ({ page }) => {
     await loginAs(page, USERS.manager)
     await page.getByRole('link', { name: 'Activity', exact: true }).click()
-    await expect(page.getByRole('complementary', { name: 'Needs attention' }).getByRole('heading', { name: 'Upcoming appointments' })).toBeVisible()
+    const board = page.getByRole('complementary', { name: 'Sales board' })
+    await expect(board.getByRole('heading', { name: 'Scoreboard' })).toBeVisible()
+    await board.getByRole('tab', { name: 'This week' }).click()
+    await expect(board.getByRole('heading', { name: 'Leaders' })).toBeVisible()
     await page.getByRole('link', { name: 'Settings', exact: true }).click()
     await expect(page).toHaveURL(/\/settings\/reports/)
     await expect(page.getByRole('heading', { name: 'Speed to first outreach' })).toBeVisible()
@@ -72,10 +75,10 @@ test.describe('roles', () => {
     await expect(page).toHaveURL(/\/settings\/reports/)
   })
 
-  test('members see neither the attention rail nor Settings', async ({ page }) => {
+  test('members see the sales board but not Settings', async ({ page }) => {
     await loginAs(page, USERS.member)
     await page.goto('/activity')
-    await expect(page.getByRole('complementary', { name: 'Needs attention' })).toHaveCount(0)
+    await expect(page.getByRole('complementary', { name: 'Sales board' }).getByText('Calls', { exact: true })).toBeVisible()
     await page.goto('/settings')
     await expect(page).toHaveURL(/\/contacts/)
   })
@@ -86,6 +89,9 @@ test.describe('roles', () => {
     await expect(page).toHaveURL(/sort=stale/)
     await page.getByRole('tab', { name: 'Oldest' }).click()
     await expect(page.locator('.crm-job-row').nth(1)).toBeVisible()
+    await page.getByRole('combobox', { name: 'Needs attention' }).selectOption('overdue')
+    await expect(page).toHaveURL(/attention=overdue/)
+    await page.getByRole('combobox', { name: 'Needs attention' }).selectOption('')
     await expect(page.getByText('No value yet')).toHaveCount(0)
     await page.getByRole('button', { name: 'Import', exact: true }).click()
     const dialog = page.getByRole('dialog')

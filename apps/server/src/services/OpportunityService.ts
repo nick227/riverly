@@ -16,7 +16,7 @@ import {
   userSummarySelect,
   usersById,
 } from '../lib/serialize'
-import { currentWorkflow } from '../lib/workflow'
+import { currentWorkflow, firstStageId } from '../lib/workflow'
 import { attachmentRefs } from './AttachmentService'
 import { messageSummariesFor } from './EmailService'
 import { validateFieldValue } from './fieldValues'
@@ -31,7 +31,14 @@ type ListQuery = {
   status?: string
   leadSourceOptionId?: string
   sort?: 'recent' | 'oldest' | 'stale'
+  attention?: Attention
 }
+
+/** Contacts "Needs attention" filters (formerly the manager rail on Activity). */
+type Attention = 'no_outreach' | 'overdue' | 'upcoming' | 'quiet'
+const DAY = 24 * 60 * 60 * 1000
+const QUIET_DAYS = 7
+const UPCOMING_DAYS = 14
 
 const ACTIVE_STATUSES: OpportunityStatus[] = ['OPEN', 'WON']
 
@@ -63,27 +70,25 @@ export class OpportunityService {
   async list(auth: AuthContext, q: ListQuery) {
     const ctx = requireOrg(auth)
     const limit = normalizeLimit(q.limit, 100, 25)
-    const base = this.filters(ctx, q)
+    const base: Prisma.OpportunityWhereInput = { AND: [this.filters(ctx, q), await attentionFilter(ctx.orgId, q.attention)] }
     const sort = q.sort ?? 'recent'
     const sortField = sort === 'stale' ? 'lastActivityAt' : 'createdAt'
     const dir = sort === 'recent' ? 'desc' : 'asc'
     const cursor = decodeCursor(q.cursor)
     const cmp = dir === 'desc' ? 'lt' : 'gt'
     const where: Prisma.OpportunityWhereInput = {
-      ...base,
-      ...(q.stageId ? { stageId: q.stageId } : {}),
-      ...(cursor
-        ? {
-            AND: [
-              {
-                OR: [
-                  { [sortField]: { [cmp]: new Date(cursor.createdAt) } },
-                  { [sortField]: new Date(cursor.createdAt), id: { [cmp]: cursor.id } },
-                ],
-              },
-            ],
-          }
-        : {}),
+      AND: [
+        base,
+        q.stageId ? { stageId: q.stageId } : {},
+        cursor
+          ? {
+              OR: [
+                { [sortField]: { [cmp]: new Date(cursor.createdAt) } },
+                { [sortField]: new Date(cursor.createdAt), id: { [cmp]: cursor.id } },
+              ],
+            }
+          : {},
+      ],
     }
     const [rows, counts] = await Promise.all([
       db.opportunity.findMany({
@@ -435,6 +440,30 @@ export class OpportunityService {
 
   private async summary(id: string) {
     return opportunitySummary(await db.opportunity.findUniqueOrThrow({ where: { id }, include: opportunitySummaryInclude }))
+  }
+}
+
+async function attentionFilter(organizationId: string, attention: Attention | undefined): Promise<Prisma.OpportunityWhereInput> {
+  const now = new Date()
+  switch (attention) {
+    case 'overdue':
+      return { nextFollowUpAt: { lt: now } }
+    case 'quiet':
+      return { lastActivityAt: { lt: new Date(now.getTime() - QUIET_DAYS * DAY) } }
+    case 'upcoming':
+      return { appointments: { some: { status: 'SCHEDULED', startsAt: { gte: new Date(now.getTime() - DAY), lte: new Date(now.getTime() + UPCOMING_DAYS * DAY) } } } }
+    case 'no_outreach': {
+      // New leads nobody has called, texted or emailed yet.
+      const { definition } = await currentWorkflow(organizationId)
+      const contacted = await db.activityEvent.findMany({
+        where: { organizationId, type: { in: ['contact.attempt', 'email.message', 'review.requested'] }, opportunityId: { not: null } },
+        select: { opportunityId: true },
+        distinct: ['opportunityId'],
+      })
+      return { stageId: firstStageId(definition), id: { notIn: contacted.length ? contacted.map((c) => c.opportunityId!) : ['-'] } }
+    }
+    default:
+      return {}
   }
 }
 

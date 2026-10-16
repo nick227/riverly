@@ -9,6 +9,15 @@ export function useManageOverview(staleDays = 7) {
   })
 }
 
+/** Live sales board: polls every minute so a wall display stays current. */
+export function useSalesBoard(period: 'today' | 'week' = 'today') {
+  return useQuery({
+    queryKey: ['sales-board', period],
+    queryFn: async () => (await unwrap(getApiClient().GET('/manage/board', { params: { query: { period } } }))).data,
+    refetchInterval: 60_000,
+  })
+}
+
 export function usePipelineReport(range: { from?: string; to?: string } = {}) {
   return useQuery({
     queryKey: ['report', 'pipeline', range],

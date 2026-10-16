@@ -22,6 +22,13 @@ import { statusLabel, statusTone } from '../config/labels'
 import { useWorkflowView, type WorkflowView } from '../config/workflow'
 
 type Sort = 'recent' | 'oldest' | 'stale'
+type Attention = 'no_outreach' | 'overdue' | 'upcoming' | 'quiet'
+const ATTENTION: { value: Attention; label: string; empty: string }[] = [
+  { value: 'no_outreach', label: 'No outreach yet', empty: 'Every new lead has been contacted.' },
+  { value: 'overdue', label: 'Overdue follow-ups', empty: 'No overdue follow-ups.' },
+  { value: 'upcoming', label: 'Upcoming appointments', empty: 'Nothing scheduled in the next two weeks.' },
+  { value: 'quiet', label: 'Quiet for 7+ days', empty: 'Nothing has gone quiet.' },
+]
 const SORTS: { value: Sort; label: string }[] = [
   { value: 'recent', label: 'Newest' },
   { value: 'oldest', label: 'Oldest' },
@@ -41,6 +48,7 @@ export default function ContactsView() {
   const owner = params.get('owner') ?? ''
   const status = params.get('status') ?? 'ACTIVE'
   const sort = (params.get('sort') as Sort) || 'recent'
+  const attention = (params.get('attention') as Attention) || ''
 
   useEffect(() => setQ(params.get('q') ?? ''), [params])
   const set = (key: string, value: string) => {
@@ -56,6 +64,7 @@ export default function ContactsView() {
     ownerId: owner || undefined,
     status: status as never,
     sort,
+    attention: attention || undefined,
     limit: 25,
   })
   const counts = jobs.data?.pages[0]?.meta.stageCounts ?? {}
@@ -99,6 +108,7 @@ export default function ContactsView() {
             ]}
             style={{ width: 150 }}
           />
+          <Select aria-label="Needs attention" value={attention} onChange={(e) => set('attention', e.target.value)} options={ATTENTION.map(({ value, label }) => ({ value, label }))} placeholder="Needs attention" style={{ width: 210 }} />
           <div className="grow" />
           <Segmented<Sort> label="Sort by" value={sort} onChange={(v) => set('sort', v === 'recent' ? '' : v)} options={SORTS} />
         </div>
@@ -119,7 +129,7 @@ export default function ContactsView() {
         ) : list.length === 0 ? (
           <Card>
             <EmptyState
-              title={debounced ? 'No jobs match that search' : 'No jobs here yet'}
+              title={debounced ? 'No jobs match that search' : attention ? ATTENTION.find((a) => a.value === attention)!.empty : 'No jobs here yet'}
               action={
                 <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
                   Add contact

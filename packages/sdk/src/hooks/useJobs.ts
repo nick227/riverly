@@ -33,6 +33,7 @@ export function invalidateJob(qc: QueryClient, id: string) {
   qc.invalidateQueries({ queryKey: ['contacts'] })
   qc.invalidateQueries({ queryKey: ['activity'] })
   qc.invalidateQueries({ queryKey: ['manage-overview'] })
+  qc.invalidateQueries({ queryKey: ['sales-board'] })
 }
 
 export function useUpdateOpportunity(id: string) {

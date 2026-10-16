@@ -4,7 +4,6 @@ import { useActivity, useNewActivityCount, type ActivityParams } from '@project/
 import { Button, Input } from '@/components/primitives/Controls'
 import { Segmented } from '@/components/patterns/Segmented'
 import { EmptyState, ErrorState, SkeletonList } from '@/components/patterns/States'
-import { cx } from '@/lib/cx'
 import { useDebounce } from '@/lib/useDebounce'
 import type { WorkflowView } from '../config/workflow'
 import { ActivityItem } from './ActivityItem'
@@ -24,7 +23,6 @@ export function ActivityRiver({
   showFilters,
   stageFilter,
   showSubject = true,
-  centered,
   timezone,
   emptyText = 'No activity yet',
 }: {
@@ -35,7 +33,6 @@ export function ActivityRiver({
   showFilters?: boolean
   stageFilter?: { stageId: string; label: string }
   showSubject?: boolean
-  centered?: boolean
   timezone?: string
   emptyText?: string
 }) {
@@ -57,7 +54,7 @@ export function ActivityRiver({
   const items = feed.data?.pages.flatMap((p) => p.data) ?? []
 
   return (
-    <section className={cx('crm-activity', centered && 'crm-activity--centered')} aria-label="Activity">
+    <section className="crm-activity" aria-label="Activity">
       {title || stageFilter ? (
         <div className="crm-activity__toolbar">
           {title ? <h2 className="heading heading--4">{title}</h2> : <span />}

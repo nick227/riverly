@@ -1343,6 +1343,63 @@ components:
         workload:
           type: array
           items: { $ref: '#/components/schemas/WorkloadRow' }
+    BoardTotals:
+      type: object
+      description: >-
+        calls = contact attempts logged with the phone method. sales = jobs moved forward into
+        Contract Signed (or a later stage) for the first time; salesValueCents sums their manually
+        entered contract values (unverified, not cash collected). newLeads = leads received.
+        inspectionsBooked = inspection appointments created.
+      required: [calls, sales, salesValueCents, newLeads, inspectionsBooked]
+      properties:
+        calls: { type: integer }
+        sales: { type: integer }
+        salesValueCents: { type: integer }
+        newLeads: { type: integer }
+        inspectionsBooked: { type: integer }
+    SalesBoard:
+      type: object
+      required: [period, timezone, from, to, metrics, previous, topSale, leaders]
+      properties:
+        period: { type: string, enum: [today, week] }
+        timezone: { type: string }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        metrics:
+          description: Totals for the window, plus right-now counts (open leads in the first stage, scheduled inspections).
+          allOf:
+            - $ref: '#/components/schemas/BoardTotals'
+            - type: object
+              required: [openLeads, inspectionsPending]
+              properties:
+                openLeads: { type: integer }
+                inspectionsPending: { type: integer }
+        previous: { $ref: '#/components/schemas/BoardTotals' }
+        topSale:
+          oneOf:
+            - type: object
+              required: [opportunityId, title, contactName, valueCents, owner]
+              properties:
+                opportunityId: { type: string }
+                title: { type: string }
+                contactName: { type: string }
+                valueCents: { type: integer }
+                owner:
+                  oneOf:
+                    - $ref: '#/components/schemas/UserSummary'
+                    - type: 'null'
+            - type: 'null'
+        leaders:
+          type: array
+          description: Top five members by sales value, then sales, then calls.
+          items:
+            type: object
+            required: [user, sales, salesValueCents, calls]
+            properties:
+              user: { $ref: '#/components/schemas/UserSummary' }
+              sales: { type: integer }
+              salesValueCents: { type: integer }
+              calls: { type: integer }
     CountRow:
       type: object
       required: [key, label, count]
@@ -1998,6 +2055,13 @@ paths:
         - in: query
           name: sort
           schema: { type: string, enum: [recent, oldest, stale], default: recent }
+        - in: query
+          name: attention
+          schema: { type: string, enum: [no_outreach, overdue, upcoming, quiet] }
+          description: >-
+            Needs-attention filter. no_outreach = new leads never called, texted or emailed;
+            overdue = follow-up date passed; upcoming = appointment scheduled in the next 14 days;
+            quiet = no activity for 7 days.
       responses:
         '200':
           description: Pipeline list
@@ -3213,6 +3277,30 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: '#/components/schemas/ManageOverview' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /manage/board:
+    get:
+      operationId: getSalesBoard
+      summary: Get the live sales board
+      description: >-
+        Running totals for today or this week (Monday start) in the company timezone, with the
+        same elapsed span one day/week earlier for comparison. Visible to every member.
+      tags: [manage]
+      parameters:
+        - in: query
+          name: period
+          schema: { type: string, enum: [today, week], default: today }
+      responses:
+        '200':
+          description: Board totals, top sale and leaderboard
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/SalesBoard' }
         '403': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
   /reports/pipeline:

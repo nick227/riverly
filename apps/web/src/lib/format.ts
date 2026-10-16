@@ -28,10 +28,6 @@ export function relative(iso: string | Date | null | undefined) {
   return dateOnly(iso)
 }
 
-export function daysSince(iso: string | Date) {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
-}
-
 /** `<input type="datetime-local">` value for an ISO instant in the browser's zone. */
 export function toLocalInput(iso: string | null | undefined) {
   if (!iso) return ''

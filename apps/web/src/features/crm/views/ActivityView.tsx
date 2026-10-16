@@ -1,18 +1,17 @@
 import { PageState } from '@/components/patterns/States'
 import { useSession } from '@/lib/session'
 import { ActivityRiver } from '../components/ActivityRiver'
-import { AttentionPanel } from '../components/AttentionPanel'
 import { PostComposer } from '../components/Composers'
+import { SalesBoard } from '../components/SalesBoard'
 import { useWorkflowView } from '../config/workflow'
 
 /**
- * Company-wide river: work events, messages, team posts, recognition and system outcomes.
- * Managers also get a "Needs attention" rail (unassigned, untouched, overdue, quiet jobs,
- * appointments and workload) beside it.
+ * Company-wide river: work events, messages, team posts, recognition and system outcomes,
+ * with the live sales board beside it for everyone. Follow-up lists live on Contacts.
  */
 export default function ActivityView() {
   const { view } = useWorkflowView()
-  const { org, can } = useSession()
+  const { org } = useSession()
   if (!view) return <PageState />
   return (
     <main className="crm-page">
@@ -21,14 +20,10 @@ export default function ActivityView() {
           <h1 className="heading heading--1">{view.terms.activity}</h1>
         </div>
       </div>
-      {can('manage.view') ? (
-        <div className="crm-activity-page">
-          <ActivityRiver base={{}} view={view} composer={<PostComposer />} showFilters timezone={org?.timezone} />
-          <AttentionPanel view={view} timezone={org?.timezone} />
-        </div>
-      ) : (
-        <ActivityRiver base={{}} view={view} composer={<PostComposer />} showFilters centered timezone={org?.timezone} />
-      )}
+      <div className="crm-activity-page">
+        <ActivityRiver base={{}} view={view} composer={<PostComposer />} showFilters timezone={org?.timezone} />
+        <SalesBoard view={view} />
+      </div>
     </main>
   )
 }

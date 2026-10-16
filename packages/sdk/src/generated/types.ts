@@ -1155,6 +1155,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/manage/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the live sales board
+         * @description Running totals for today or this week (Monday start) in the company timezone, with the same elapsed span one day/week earlier for comparison. Visible to every member.
+         */
+        get: operations["getSalesBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/pipeline": {
         parameters: {
             query?: never;
@@ -2107,6 +2127,43 @@ export interface components {
             upcomingAppointments: components["schemas"]["UpcomingAppointment"][];
             workload: components["schemas"]["WorkloadRow"][];
         };
+        /** @description calls = contact attempts logged with the phone method. sales = jobs moved forward into Contract Signed (or a later stage) for the first time; salesValueCents sums their manually entered contract values (unverified, not cash collected). newLeads = leads received. inspectionsBooked = inspection appointments created. */
+        BoardTotals: {
+            calls: number;
+            sales: number;
+            salesValueCents: number;
+            newLeads: number;
+            inspectionsBooked: number;
+        };
+        SalesBoard: {
+            /** @enum {string} */
+            period: "today" | "week";
+            timezone: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** @description Totals for the window, plus right-now counts (open leads in the first stage, scheduled inspections). */
+            metrics: components["schemas"]["BoardTotals"] & {
+                openLeads: number;
+                inspectionsPending: number;
+            };
+            previous: components["schemas"]["BoardTotals"];
+            topSale: {
+                opportunityId: string;
+                title: string;
+                contactName: string;
+                valueCents: number;
+                owner: components["schemas"]["UserSummary"] | null;
+            } | null;
+            /** @description Top five members by sales value, then sales, then calls. */
+            leaders: {
+                user: components["schemas"]["UserSummary"];
+                sales: number;
+                salesValueCents: number;
+                calls: number;
+            }[];
+        };
         CountRow: {
             key: string | null;
             label: string;
@@ -2903,6 +2960,8 @@ export interface operations {
                 status?: "OPEN" | "WON" | "LOST" | "ON_HOLD" | "CANCELED" | "ACTIVE" | "ALL";
                 leadSourceOptionId?: string;
                 sort?: "recent" | "oldest" | "stale";
+                /** @description Needs-attention filter. no_outreach = new leads never called, texted or emailed; overdue = follow-up date passed; upcoming = appointment scheduled in the next 14 days; quiet = no activity for 7 days. */
+                attention?: "no_outreach" | "overdue" | "upcoming" | "quiet";
             };
             header?: never;
             path?: never;
@@ -4387,6 +4446,32 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["ManageOverview"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    getSalesBoard: {
+        parameters: {
+            query?: {
+                period?: "today" | "week";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Board totals, top sale and leaderboard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SalesBoard"];
                     };
                 };
             };
