@@ -40,6 +40,17 @@
     --color-success-bg: var(--green-50);
     --color-warning: var(--amber-600);
     --color-warning-bg: var(--amber-50);
+    /* Activity type tones: muted icon colours (fg) and milestone tints (bg). */
+    --tone-call: #4d7c5f;
+    --tone-call-bg: #eef5f0;
+    --tone-email: #3b6fb6;
+    --tone-email-bg: #eef3fb;
+    --tone-lead: #a16207;
+    --tone-lead-bg: #fdf6e3;
+    --tone-appointment: #7660b0;
+    --tone-appointment-bg: #f3f0fa;
+    --tone-stage: #2f7f86;
+    --tone-stage-bg: #e9f5f5;
     --color-danger: var(--red-600);
     --color-danger-bg: var(--red-50);
     --color-overlay: rgb(23 23 23 / 0.32);
@@ -150,6 +161,16 @@
     --color-warning-bg: #2a2110;
     --color-danger: #fb923c;
     --color-danger-bg: #2b1810;
+    --tone-call: #8fc4a2;
+    --tone-call-bg: #15231a;
+    --tone-email: #8db4ea;
+    --tone-email-bg: #142033;
+    --tone-lead: #e6b450;
+    --tone-lead-bg: #2a2110;
+    --tone-appointment: #b6a4ea;
+    --tone-appointment-bg: #211b33;
+    --tone-stage: #7cc7cc;
+    --tone-stage-bg: #112627;
     --color-overlay: rgb(0 0 0 / 0.6);
     --pipeline-current: #3b82f6;
     --pipeline-current-bg: #172554;

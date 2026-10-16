@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Search } from 'lucide-react'
-import { useActivity, useNewActivityCount, type ActivityParams } from '@project/sdk'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, Phone, Search } from 'lucide-react'
+import { useActivity, useNewActivityCount, type ActivityItem as Item, type ActivityParams } from '@project/sdk'
 import { Button, Input } from '@/components/primitives/Controls'
 import { Segmented } from '@/components/patterns/Segmented'
 import { EmptyState, ErrorState, SkeletonList } from '@/components/patterns/States'
+import { cx } from '@/lib/cx'
+import { relative } from '@/lib/format'
 import { useDebounce } from '@/lib/useDebounce'
 import type { WorkflowView } from '../config/workflow'
 import { ActivityItem } from './ActivityItem'
+import { activityTone, milestoneLabel, riverRows } from './activityPresentation'
 
 type Filter = NonNullable<ActivityParams['filter']>
 
@@ -51,7 +54,9 @@ export function ActivityRiver({
     }
   }, [feed.dataUpdatedAt, feed.isFetchingNextPage])
   const fresh = useNewActivityCount(params, since)
-  const items = feed.data?.pages.flatMap((p) => p.data) ?? []
+  const items = useMemo(() => feed.data?.pages.flatMap((p) => p.data) ?? [], [feed.data])
+  const rows = useMemo(() => riverRows(items, timezone), [items, timezone])
+  const shared = { view, showSubject, timezone }
 
   return (
     <section className="crm-activity" aria-label="Activity">
@@ -105,9 +110,17 @@ export function ActivityRiver({
         <EmptyState title={debounced ? 'Nothing matches that search' : emptyText} />
       ) : (
         <div className="crm-activity__list">
-          {items.map((item) => (
-            <ActivityItem key={item.id} item={item} view={view} showSubject={showSubject} timezone={timezone} />
-          ))}
+          {rows.map((row) =>
+            row.kind === 'day' ? (
+              <h3 key={row.key} className="activity-day">
+                {row.label}
+              </h3>
+            ) : row.kind === 'group' ? (
+              <AttemptGroup key={row.key} items={row.items} {...shared} />
+            ) : (
+              <ActivityEntry key={row.key} item={row.item} {...shared} />
+            ),
+          )}
         </div>
       )}
       {feed.hasNextPage ? (
@@ -116,5 +129,59 @@ export function ActivityRiver({
         </Button>
       ) : null}
     </section>
+  )
+}
+
+type RowProps = { view: WorkflowView; showSubject: boolean; timezone?: string }
+
+/** One event, tinted by type; milestones (signed contracts, booked inspections, new leads) stand out. */
+function ActivityEntry({ item, ...rest }: RowProps & { item: Item }) {
+  const milestone = milestoneLabel(item)
+  return (
+    <div className={cx('activity-entry', `activity-entry--${activityTone(item)}`, milestone && 'activity-entry--milestone')}>
+      {milestone ? <span className="activity-entry__eyebrow">{milestone}</span> : null}
+      <ActivityItem item={item} {...rest} />
+    </div>
+  )
+}
+
+/** A run of contact attempts by one person, summarised on one row and expandable. */
+function AttemptGroup({ items, view, showSubject, timezone }: RowProps & { items: Item[] }) {
+  const [open, setOpen] = useState(false)
+  const actor = items[0]!.actor!
+  const allCalls = items.every((i) => i.methodId === 'phone')
+  const outcomes = new Map<string, number>()
+  for (const i of items) outcomes.set(view.outcomeLabel(i.outcomeId), (outcomes.get(view.outcomeLabel(i.outcomeId)) ?? 0) + 1)
+  const people = [...new Set(items.map((i) => i.contact?.label).filter(Boolean))]
+  return (
+    <div className="activity-entry activity-entry--call activity-entry--group">
+      <article className="activity-item">
+        <span className="activity-item__icon">
+          <Phone />
+        </span>
+        <div className="activity-item__body">
+          <p className="activity-item__line">
+            <strong>{actor.displayName}</strong> {allCalls ? `made ${items.length} calls` : `logged ${items.length} contact attempts`}
+          </p>
+          <div className="activity-item__meta">
+            <time dateTime={items[0]!.occurredAt}>{relative(items[0]!.occurredAt)}</time>
+            <span>{[...outcomes].map(([label, n]) => `${n} ${label.toLowerCase()}`).join(', ')}</span>
+            {showSubject && people.length ? <span>{people.length > 3 ? `${people.slice(0, 3).join(', ')} +${people.length - 3}` : people.join(', ')}</span> : null}
+          </div>
+          <div>
+            <button type="button" className="reaction" onClick={() => setOpen(!open)} aria-expanded={open}>
+              {open ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />} {open ? 'Hide' : 'Show'} {allCalls ? 'calls' : 'attempts'}
+            </button>
+          </div>
+        </div>
+      </article>
+      {open ? (
+        <div className="activity-group__items">
+          {items.map((i) => (
+            <ActivityItem key={i.id} item={i} view={view} showSubject={showSubject} timezone={timezone} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }

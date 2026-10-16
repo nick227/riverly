@@ -392,6 +392,25 @@
   .reaction { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 var(--space-2); border-radius: var(--radius-full); border: var(--border-width) solid var(--color-border); font-size: var(--text-xs); color: var(--color-text-secondary); }
   .reaction:hover { border-color: var(--color-border-strong); }
   .reaction.is-mine { border-color: var(--color-accent); color: var(--color-text); }
+  /* River rhythm: day separators, tone-coloured icons, highlighted milestones, grouped calls. */
+  .activity-day { margin: var(--space-6) 0 var(--space-1); font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: var(--space-3); }
+  .activity-day::after { content: ''; flex: 1; height: var(--border-width); background: var(--color-border); }
+  .activity-day:first-child { margin-top: var(--space-2); }
+  .activity-entry { --tone: var(--color-text-secondary); --tone-bg: var(--color-surface-hover); }
+  .activity-entry + .activity-entry { border-top: var(--border-width) solid var(--color-border); }
+  .activity-entry > .activity-item { border-top: 0; }
+  .activity-entry--call { --tone: var(--tone-call); --tone-bg: var(--tone-call-bg); }
+  .activity-entry--email { --tone: var(--tone-email); --tone-bg: var(--tone-email-bg); }
+  .activity-entry--lead { --tone: var(--tone-lead); --tone-bg: var(--tone-lead-bg); }
+  .activity-entry--appointment { --tone: var(--tone-appointment); --tone-bg: var(--tone-appointment-bg); }
+  .activity-entry--stage { --tone: var(--tone-stage); --tone-bg: var(--tone-stage-bg); }
+  .activity-entry .activity-item__icon { background: var(--tone-bg); color: var(--tone); }
+  .activity-entry--milestone { margin: var(--space-2) 0; padding: var(--space-3) var(--space-4) var(--space-1); border-radius: var(--radius-lg); background: var(--tone-bg); }
+  .activity-entry--milestone, .activity-entry--milestone + .activity-entry, .activity-entry:has(.activity-item--attention) + .activity-entry { border-top-color: transparent; }
+  .activity-entry--milestone .activity-item__icon { background: var(--color-surface); }
+  .activity-entry--milestone .activity-item__line { font-size: var(--text-base); color: var(--color-text); }
+  .activity-entry__eyebrow { display: block; padding-left: calc(32px + var(--space-3)); font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--tone); text-transform: uppercase; letter-spacing: 0.06em; }
+  .activity-group__items { margin-left: calc(32px + var(--space-3)); padding-left: var(--space-3); border-left: 2px solid var(--tone-bg); }
   .comment-thread { display: flex; flex-direction: column; gap: var(--space-3); padding-left: var(--space-3); border-left: 2px solid var(--color-border); }
 
   /* ── Composer ── */
