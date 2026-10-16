@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus } from 'lucide-react'
-import type { FieldDef, OptionDef, StageDef, WorkflowDefinition } from '@project/sdk'
+import type { OptionDef, StageDef, WorkflowDefinition } from '@project/sdk'
 import { usePublishWorkflow, useWorkflow } from '@project/sdk'
-import { Button, Checkbox, IconButton, Input, Select, Textarea } from '@/components/primitives/Controls'
+import { Button, IconButton, Input, Select, Textarea } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
 import { Card, CardHeader } from '@/components/patterns/Card'
 import { Field } from '@/components/patterns/Field'
@@ -24,16 +24,19 @@ function uniqueId(base: string, taken: string[]) {
   return id
 }
 
+const VOCABULARY = { opportunity: 'Job', contact: 'Contact', owner: 'Owner role', activity: 'Activity' } as const
+
 /**
  * Edits a draft of the published definition and publishes an immutable new version.
- * IDs are generated once and never edited; removal is "retire", never delete.
+ * Only the workflow itself is editable here (stages, field options, vocabulary); everything
+ * else in the definition (field wiring, contact attempt choices, IDs) is predefined and
+ * published back unchanged. Removal is "retire", never delete.
  */
 export function WorkflowSettings() {
   const wf = useWorkflow()
   const publish = usePublishWorkflow()
   const [draft, setDraft] = useState<WorkflowDefinition | null>(null)
   const [mappings, setMappings] = useState<Record<string, string>>({})
-  const [note, setNote] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
 
@@ -47,6 +50,7 @@ export function WorkflowSettings() {
 
   const stages = [...draft.stages].sort((a, b) => a.order - b.order)
   const active = stages.filter((s) => !s.retired)
+  const optionFields = draft.fields.filter((f) => !f.retired && (f.type === 'select' || f.type === 'multi_select'))
   const needsMapping = stages.filter((s) => s.retired && !wf.data!.definition.stages.find((p) => p.id === s.id)?.retired && (counts[s.id] ?? 0) > 0)
 
   const update = (fn: (d: WorkflowDefinition) => void) =>
@@ -73,12 +77,10 @@ export function WorkflowSettings() {
         baseVersionId: wf.data!.versionId,
         definition: draft!,
         stageMappings: needsMapping.map((s) => ({ fromStageId: s.id, toStageId: mappings[s.id] ?? '' })),
-        changeNote: note || undefined,
       },
       {
         onSuccess: (data) => {
           setDraft(structuredClone(data.definition))
-          setNote('')
           setMappings({})
           toast.success(`Published version ${data.version}`)
         },
@@ -96,11 +98,10 @@ export function WorkflowSettings() {
       <Card>
         <div className="row row--between row--wrap gap-3">
           <div className="stack gap-1">
-            <span className="text text--sm text--strong">Version {wf.data.version}</span>
-            <span className="text text--xs text--muted">Published {dateOnly(wf.data.publishedAt)}. Jobs keep their history; labels update everywhere on publish.</span>
+            <span className="text text--sm text--strong">{dirty ? 'Unpublished changes' : 'Workflow is up to date'}</span>
+            <span className="text text--xs text--muted">Version {wf.data.version} · published {dateOnly(wf.data.publishedAt)}. Jobs keep their history; labels update everywhere on publish.</span>
           </div>
           <div className="row gap-2">
-            <Input aria-label="Change note" placeholder="What changed? (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={{ width: 260 }} />
             <Button variant="ghost" disabled={!dirty} onClick={() => setDraft(structuredClone(wf.data!.definition))}>
               Discard
             </Button>
@@ -136,17 +137,6 @@ export function WorkflowSettings() {
       </Card>
 
       <Card>
-        <CardHeader title="Vocabulary" />
-        <div className="grid grid--4 gap-4">
-          {(['contact', 'opportunity', 'owner', 'activity'] as const).map((k) => (
-            <Field key={k} label={{ contact: 'Contact', opportunity: 'Job', owner: 'Owner role', activity: 'Activity' }[k]}>
-              {(id) => <Input id={id} value={draft.terminology[k]} onChange={(e) => update((d) => (d.terminology[k] = e.target.value))} />}
-            </Field>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
         <CardHeader
           title="Stages"
           actions={
@@ -168,11 +158,9 @@ export function WorkflowSettings() {
           {stages.map((s, i) => (
             <div key={s.id} className="stack gap-3" style={{ padding: 'var(--space-3) 0', borderTop: i ? 'var(--border-width) solid var(--color-border)' : undefined }}>
               <div className="row gap-2">
-                <IconButton size="sm" label={open === s.id ? 'Collapse' : 'Configure'} icon={open === s.id ? <ChevronDown /> : <ChevronRight />} onClick={() => setOpen(open === s.id ? null : s.id)} />
-                <Input aria-label={`Label for ${s.id}`} value={s.label} onChange={(e) => updateStage(s.id, { label: e.target.value })} disabled={s.retired} style={{ maxWidth: 280 }} />
-                <span className="text text--xs text--muted grow">
-                  id: {s.id} · {counts[s.id] ?? 0} active jobs
-                </span>
+                <IconButton size="sm" label={open === s.id ? 'Hide instructions' : 'Edit instructions'} icon={open === s.id ? <ChevronDown /> : <ChevronRight />} onClick={() => setOpen(open === s.id ? null : s.id)} />
+                <Input aria-label={`Stage ${i + 1} name`} value={s.label} onChange={(e) => updateStage(s.id, { label: e.target.value })} disabled={s.retired} style={{ maxWidth: 280 }} />
+                <span className="text text--xs text--muted grow">{counts[s.id] ? `${counts[s.id]} active jobs` : null}</span>
                 {s.retired ? <Badge tone="outline">Retired</Badge> : null}
                 <IconButton size="sm" label="Move up" icon={<ArrowUp />} onClick={() => move(s.id, -1)} disabled={i === 0} />
                 <IconButton size="sm" label="Move down" icon={<ArrowDown />} onClick={() => move(s.id, 1)} disabled={i === stages.length - 1} />
@@ -180,83 +168,58 @@ export function WorkflowSettings() {
                   {s.retired ? 'Restore' : 'Retire'}
                 </Button>
               </div>
-              {open === s.id ? <StageConfig stage={s} fields={draft.fields} onChange={(patch) => updateStage(s.id, patch)} /> : null}
+              {open === s.id ? <StageInstructions stage={s} onChange={(instructions) => updateStage(s.id, { instructions })} /> : null}
             </div>
           ))}
         </div>
       </Card>
 
       <Card>
-        <CardHeader title="Fields and options" />
-        <div className="stack gap-5">
-          {draft.fields.map((f) => (
-            <FieldConfig key={f.id} field={f} onChange={(patch) => update((d) => Object.assign(d.fields.find((x) => x.id === f.id)!, patch))} />
+        <CardHeader title="Field options" />
+        <div className="grid grid--2 gap-6">
+          {optionFields.map((f) => (
+            <OptionsEditor
+              key={f.id}
+              label={f.label}
+              options={f.options ?? []}
+              onChange={(options) => update((d) => (d.fields.find((x) => x.id === f.id)!.options = options))}
+            />
           ))}
         </div>
       </Card>
 
       <Card>
-        <CardHeader title="Contact attempt choices" />
-        <div className="grid grid--2 gap-6">
-          <OptionsEditor label="Methods" options={draft.activity.methods} onChange={(methods) => update((d) => (d.activity.methods = methods))} />
-          <OptionsEditor label="Outcomes" options={draft.activity.outcomes} onChange={(outcomes) => update((d) => (d.activity.outcomes = outcomes))} />
+        <CardHeader title="Vocabulary" />
+        <div className="grid grid--4 gap-4">
+          {(Object.keys(VOCABULARY) as (keyof typeof VOCABULARY)[]).map((k) => (
+            <Field key={k} label={VOCABULARY[k]}>
+              {(id) => <Input id={id} value={draft.terminology[k]} onChange={(e) => update((d) => (d.terminology[k] = e.target.value))} />}
+            </Field>
+          ))}
         </div>
       </Card>
     </div>
   )
 }
 
-function StageConfig({ stage, fields, onChange }: { stage: StageDef; fields: FieldDef[]; onChange: (patch: Partial<StageDef>) => void }) {
-  const toggle = (id: string, on: boolean) => onChange({ fieldIds: on ? [...stage.fieldIds, id] : stage.fieldIds.filter((f) => f !== id) })
+/** Guidance shown on the job's stage workspace (falls back to the stage description). */
+function StageInstructions({ stage, onChange }: { stage: StageDef; onChange: (instructions: string | undefined) => void }) {
   return (
-    <div className="card card--subtle stack gap-4">
-      <div className="grid grid--2 gap-4">
-        <Field label="Primary action label" hint="Button that moves a job onward from this stage">
-          {(id) => <Input id={id} value={stage.primaryActionLabel ?? ''} onChange={(e) => onChange({ primaryActionLabel: e.target.value || undefined })} placeholder="Move to next stage" />}
-        </Field>
-        <Field label="Short description">{(id) => <Input id={id} value={stage.description ?? ''} onChange={(e) => onChange({ description: e.target.value || undefined })} maxLength={280} />}</Field>
-      </div>
-      <Field label="Instructions for the team" hint="Optional. Shown on the stage; never a required checklist.">
-        {(id) => <Textarea id={id} rows={2} value={stage.instructions ?? ''} onChange={(e) => onChange({ instructions: e.target.value || undefined })} maxLength={1000} />}
-      </Field>
-      <div className="stack gap-2">
-        <span className="field__label">Controls on this stage (up to four)</span>
-        <div className="grid grid--3 gap-2">
-          {fields
-            .filter((f) => !f.retired)
-            .map((f) => (
-              <Checkbox key={f.id} label={`${f.label}`} checked={stage.fieldIds.includes(f.id)} disabled={!stage.fieldIds.includes(f.id) && stage.fieldIds.length >= 4} onChange={(e) => toggle(f.id, e.target.checked)} />
-            ))}
-        </div>
-      </div>
-    </div>
+    <Field label="Instructions for the team" hint="Optional. Shown on the stage; never a required checklist.">
+      {(id) => <Textarea id={id} rows={2} value={stage.instructions ?? stage.description ?? ''} onChange={(e) => onChange(e.target.value || undefined)} maxLength={1000} />}
+    </Field>
   )
 }
 
-function FieldConfig({ field, onChange }: { field: FieldDef; onChange: (patch: Partial<FieldDef>) => void }) {
-  const hasOptions = field.type === 'select' || field.type === 'multi_select'
-  return (
-    <div className="stack gap-2">
-      <div className="row row--wrap gap-2">
-        <Input aria-label={`Label for ${field.id}`} value={field.label} onChange={(e) => onChange({ label: e.target.value })} style={{ maxWidth: 260 }} />
-        <Badge tone="outline">{field.type.replace('_', ' ')}</Badge>
-        <span className="text text--xs text--muted grow">id: {field.id}</span>
-        <Checkbox label="Visible" checked={field.visible !== false} onChange={(e) => onChange({ visible: e.target.checked })} />
-      </div>
-      {hasOptions ? <OptionsEditor label="Options" options={field.options ?? []} onChange={(options) => onChange({ options })} inset /> : null}
-    </div>
-  )
-}
-
-function OptionsEditor({ label, options, onChange, inset }: { label: string; options: OptionDef[]; onChange: (o: OptionDef[]) => void; inset?: boolean }) {
+function OptionsEditor({ label, options, onChange }: { label: string; options: OptionDef[]; onChange: (o: OptionDef[]) => void }) {
   const [adding, setAdding] = useState('')
   return (
-    <div className="stack gap-2" style={inset ? { paddingLeft: 'var(--space-6)' } : undefined}>
+    <div className="stack gap-2">
       <span className="field__label">{label}</span>
       {options.map((o, i) => (
         <div key={o.id} className="row gap-2">
-          <Input size_="sm" aria-label={`Option ${o.id}`} value={o.label} disabled={o.retired} onChange={(e) => onChange(options.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ maxWidth: 260 }} />
-          <span className="text text--xs text--muted grow">{o.id}</span>
+          <Input size_="sm" aria-label={`${label} option ${i + 1}`} value={o.label} disabled={o.retired} onChange={(e) => onChange(options.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ maxWidth: 260 }} />
+          {o.retired ? <Badge tone="outline">Retired</Badge> : null}
           <Button size="sm" variant="ghost" onClick={() => onChange(options.map((x, j) => (j === i ? { ...x, retired: !x.retired } : x)))}>
             {o.retired ? 'Restore' : 'Retire'}
           </Button>
