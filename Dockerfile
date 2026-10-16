@@ -3,6 +3,9 @@
 FROM node:20-bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
   && corepack enable
+# Bake pnpm into the image so containers don't download it on every start.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack prepare pnpm@10.12.1 --activate
 WORKDIR /app
 
 FROM base AS build
