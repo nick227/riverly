@@ -10,6 +10,7 @@ import { useSubscription } from '@/lib/subscription'
 import { Avatar } from '@/components/patterns/Avatar'
 import { Menu, MenuDivider, MenuItem, MenuLabel } from '@/components/patterns/Menu'
 import { toast } from '@/components/patterns/Toast'
+import { loadingScreen } from '@/components/patterns/LoadingScreen'
 import { useWorkflowView } from '../config/workflow'
 
 export function AppHeader() {
@@ -20,6 +21,19 @@ export function AppHeader() {
   const { theme, toggle } = useTheme()
   const { isPremium, openUpgradeModal } = useSubscription()
   if (!me) return null
+  const signOut = () => {
+    const screen = loadingScreen.start('Signing out')
+    logout.mutate(undefined, {
+      onSuccess: () => {
+        navigate('/login')
+        screen.done()
+      },
+      onError: (err) => {
+        screen.cancel()
+        toast.error(err, 'Could not sign out')
+      },
+    })
+  }
   const navClass = ({ isActive }: { isActive: boolean }) => cx('crm-header__link', isActive && 'is-active')
 
   return (
@@ -107,7 +121,7 @@ export function AppHeader() {
                   </>
                 ) : null}
                 <MenuDivider />
-                <MenuItem icon={<LogOut />} onSelect={() => logout.mutate(undefined, { onSuccess: () => navigate('/login') })}>
+                <MenuItem icon={<LogOut />} onSelect={signOut}>
                   Sign out
                 </MenuItem>
               </>

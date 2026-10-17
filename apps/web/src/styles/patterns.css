@@ -152,6 +152,40 @@
   .toast--error { background: var(--color-surface); color: var(--color-danger); border: var(--border-width) solid var(--color-danger); }
   .toast svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
 
+  /* ── Loading screen (branded full-screen loader; always dark, independent of theme) ── */
+  .loading-screen {
+    --loader-bg: #1c1d1f;
+    --loader-text: #ececec;
+    --loader-muted: #8b8d91;
+    --loader-track: rgb(255 255 255 / 0.08);
+    --loader-accent: #6cc3cc;
+    position: fixed; inset: 0; z-index: var(--z-loader); display: grid; place-items: center;
+    background: var(--loader-bg); color: var(--loader-text);
+    animation: fade-in var(--duration-base) var(--ease) both;
+    transition: opacity 260ms var(--ease);
+  }
+  .loading-screen--delayed { animation-delay: 160ms; }
+  .loading-screen.is-leaving { opacity: 0; pointer-events: none; }
+  .loading-screen__center { display: flex; flex-direction: column; align-items: center; gap: var(--space-5); padding: 0 var(--space-4); text-align: center; }
+  .loading-screen__mark { width: 52px; height: 52px; }
+  .loading-screen__mark rect { fill: #1f6f7a; }
+  .loading-screen__river {
+    fill: none; stroke: #fff; stroke-width: 2.25; stroke-linecap: round;
+    stroke-dasharray: 1; stroke-dashoffset: 0; animation: loader-draw 3.2s ease-in-out infinite;
+  }
+  .loading-screen__wordmark {
+    padding-left: var(--site-wordmark-tracking); font-size: var(--text-sm); font-weight: 500;
+    letter-spacing: var(--site-wordmark-tracking); color: var(--loader-text);
+  }
+  .loading-screen__track { position: relative; width: 120px; height: 2px; border-radius: var(--radius-full); background: var(--loader-track); overflow: hidden; }
+  .loading-screen__bar {
+    position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: inherit; background: var(--loader-accent);
+    animation: loader-slide 2.4s ease-in-out infinite;
+  }
+  .loading-screen__label { font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--loader-muted); }
+  @keyframes loader-draw { 0% { stroke-dashoffset: 1; } 50%, 100% { stroke-dashoffset: 0; } }
+  @keyframes loader-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+
   /* ── Segmented control / tabs ── */
   .segmented { display: inline-flex; flex-wrap: nowrap; gap: var(--space-1); scrollbar-width: none; }
   .segmented::-webkit-scrollbar { display: none; }

@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createApiClient } from '@project/sdk'
 import { queryClient } from './lib/queryClient'
 import { ToastRegion } from './components/patterns/Toast'
+import { LoadingScreenRegion } from './components/patterns/LoadingScreen'
 import { App } from './App'
 import './styles/index.css'
 
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <App />
       <ToastRegion />
+      <LoadingScreenRegion />
     </QueryClientProvider>
   </React.StrictMode>,
 )

@@ -6,6 +6,7 @@ import { Button, Input } from '@/components/primitives/Controls'
 import { Field } from '@/components/patterns/Field'
 import { Notice } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
+import { loadingScreen } from '@/components/patterns/LoadingScreen'
 import { useSubscription } from '@/lib/subscription'
 import { UpgradeModal } from '@/features/billing/UpgradeModal'
 
@@ -54,10 +55,12 @@ export function AuthCard({ initialTab = 'signup', compact = false, onSuccess, cl
     e.preventDefault()
     if (!loginEmail || !loginPassword) return
 
+    const screen = loadingScreen.start('Signing you in')
     login.mutate(
       { email: loginEmail, password: loginPassword },
       {
         onSuccess: () => {
+          screen.done()
           toast.success('Welcome back!')
           if (onSuccess) {
             onSuccess()
@@ -65,6 +68,7 @@ export function AuthCard({ initialTab = 'signup', compact = false, onSuccess, cl
             navigate(from, { replace: true })
           }
         },
+        onError: () => screen.cancel(),
       },
     )
   }

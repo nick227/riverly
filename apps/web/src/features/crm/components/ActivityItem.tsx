@@ -50,10 +50,11 @@ export function ActivityItem({ item, view, showSubject = true, timezone }: { ite
       <div className="activity-item__body">
         <div className="row row--between">
           <p className="activity-item__line">{r.line}</p>
-            <Button size="sm" variant="ghost" onClick={() => setCorrecting(true)}>
+          {correctable && !correcting ? (
+            <Button size="sm" variant="ghost" onClick={() => setCorrecting(true)} aria-label="Correct entry" title="Correct entry">
               <Pencil aria-hidden />
             </Button>
-
+          ) : null}
         </div>
         {r.content}
         {item.note && !r.hideNote ? <p className="activity-item__note">{item.note}</p> : null}

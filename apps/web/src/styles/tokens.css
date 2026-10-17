@@ -131,6 +131,7 @@
     --z-menu: 40;
     --z-overlay: 60;
     --z-toast: 80;
+    --z-loader: 90;
     --duration-fast: 120ms;
     --duration-base: 180ms;
     --ease: cubic-bezier(0.2, 0, 0, 1);

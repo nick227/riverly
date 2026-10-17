@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, Check, CheckCircle2, Copy, CreditCard, ExternalLink, Globe, Key, Layers, Mail, Receipt, RefreshCw, Send, ShoppingBag, Store, Zap } from 'lucide-react'
 import type { Integration } from '@project/sdk'
@@ -43,7 +43,7 @@ const WOOCOMMERCE: SyncConnector = {
   description: 'Sync customer accounts and orders via WordPress Application Password.',
   fields: [
     { key: 'siteUrl', label: 'WordPress / Store URL', hint: 'Store base URL', placeholder: 'https://mystore.com', initial: 'https://demo.peakridgeroofing.test' },
-    { key: 'username', label: 'WordPress Username', hint: 'Admin or shop manager user', placeholder: 'admin', initial: 'admin' },
+    { key: 'username', label: 'WordPress Username', hint: 'WordPress login username (e.g. admin) or account email — not the Application Password label', placeholder: 'admin', initial: 'admin' },
     {
       key: 'password',
       label: 'Application Password',
@@ -164,6 +164,23 @@ function SyncConnectorCard({ connector: c, integration }: { connector: SyncConne
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const payload = { provider: c.provider, config: values, credentials: secret || undefined }
   const resolve = (v: string | ((has: boolean) => string)) => (typeof v === 'function' ? v(hasSecret) : v)
+
+  useEffect(() => {
+    if (integration?.config) {
+      const cfg = integration.config as Config
+      setValues((prev) => {
+        const next = { ...prev }
+        let changed = false
+        for (const f of c.fields) {
+          if (!f.secret && cfg[f.key] && prev[f.key] !== cfg[f.key]) {
+            next[f.key] = cfg[f.key]!
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    }
+  }, [integration?.config])
 
   const save = () =>
     update.mutate({ ...payload, name: c.savedName }, { onSuccess: () => toast.success(`${c.name} settings saved`), onError: (e) => toast.error(e) })

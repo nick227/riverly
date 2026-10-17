@@ -12,15 +12,22 @@ import { ReportsSettings } from './settings/ReportsSettings'
 import { DiagnosticsSettings } from './settings/DiagnosticsSettings'
 import { BillingSettings } from './settings/BillingSettings'
 
-const SECTIONS: { path: string; label: string; permission: Permission; element: React.ReactNode }[] = [
-  { path: 'company', label: 'Company', permission: 'settings.manage', element: <CompanySettings /> },
-  { path: 'billing', label: 'Billing & Plan', permission: 'settings.manage', element: <BillingSettings /> },
-  { path: 'team', label: 'Team', permission: 'settings.manage', element: <TeamSettings /> },
-  { path: 'workflow', label: 'Workflow', permission: 'settings.manage', element: <WorkflowSettings /> },
-  { path: 'email', label: 'Email', permission: 'settings.manage', element: <EmailSettings /> },
-  { path: 'integrations', label: 'Integrations', permission: 'settings.manage', element: <IntegrationsSettings /> },
-  { path: 'reports', label: 'Reports', permission: 'reports.view', element: <ReportsSettings /> },
-  { path: 'diagnostics', label: 'Diagnostics', permission: 'diagnostics.view', element: <DiagnosticsSettings /> },
+interface SettingsSection {
+  path: string
+  label: string
+  permission: Permission
+  Component: React.ComponentType
+}
+
+const SECTIONS: SettingsSection[] = [
+  { path: 'company', label: 'Company', permission: 'settings.manage', Component: CompanySettings },
+  { path: 'billing', label: 'Billing & Plan', permission: 'settings.manage', Component: BillingSettings },
+  { path: 'team', label: 'Team', permission: 'settings.manage', Component: TeamSettings },
+  { path: 'workflow', label: 'Workflow', permission: 'settings.manage', Component: WorkflowSettings },
+  { path: 'email', label: 'Email', permission: 'settings.manage', Component: EmailSettings },
+  { path: 'integrations', label: 'Integrations', permission: 'settings.manage', Component: IntegrationsSettings },
+  { path: 'reports', label: 'Reports', permission: 'reports.view', Component: ReportsSettings },
+  { path: 'diagnostics', label: 'Diagnostics', permission: 'diagnostics.view', Component: DiagnosticsSettings },
 ]
 
 /** Company configuration and reports. Managers see only the sections their role allows (Reports). */
@@ -55,8 +62,8 @@ export default function SettingsView() {
       </nav>
       <Routes>
         <Route index element={<Navigate to={sections[0]?.path ?? '/contacts'} replace />} />
-        {sections.map((s) => (
-          <Route key={s.path} path={s.path} element={s.element} />
+        {sections.map(({ path, Component }) => (
+          <Route key={path} path={path} element={<Component />} />
         ))}
         <Route path="*" element={<Navigate to="/settings" replace />} />
       </Routes>

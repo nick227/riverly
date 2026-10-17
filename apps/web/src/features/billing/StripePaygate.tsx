@@ -14,7 +14,7 @@ import {
 import { Button, Input } from '@/components/primitives/Controls'
 import { Field } from '@/components/patterns/Field'
 import { toast } from '@/components/patterns/Toast'
-import { useSubscription, type BillingCycle, type PaymentDetails } from '@/lib/subscription'
+import { useSubscription, PREMIUM_PRICE, ANNUAL_SAVINGS_AMOUNT, type BillingCycle, type PaymentDetails } from '@/lib/subscription'
 
 export interface StripePaygateProps {
   billingCycle: BillingCycle
@@ -83,8 +83,8 @@ export function StripePaygate({ billingCycle, onSuccess, onBack, customerEmail =
   const cardBrand = detectCardBrand(cardNumber)
   const cleanCard = cardNumber.replace(/\s+/g, '')
 
-  const priceAmount = billingCycle === 'annual' ? 39 : 49
-  const totalBilled = billingCycle === 'annual' ? 39 * 12 : 49
+  const priceAmount = PREMIUM_PRICE[billingCycle].perMonth
+  const totalBilled = PREMIUM_PRICE[billingCycle].billed
 
   // 1-Click Fill Test Card
   const fillTestCard = () => {
@@ -274,7 +274,7 @@ export function StripePaygate({ billingCycle, onSuccess, onBack, customerEmail =
 
             <div className="stripe-order-summary__footer">
               <span>
-                Billed {billingCycle === 'annual' ? `$${totalBilled}/year (Save $120)` : '$49/month'}
+                Billed {billingCycle === 'annual' ? `$${totalBilled}/year (save $${ANNUAL_SAVINGS_AMOUNT})` : `$${totalBilled}/month`}
               </span>
               <span className="stripe-dot" />
               <span>14-day money-back guarantee</span>

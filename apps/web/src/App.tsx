@@ -7,6 +7,7 @@ import { SubscriptionProvider } from './lib/subscription'
 import { PageState } from './components/patterns/States'
 import { AppHeader } from './features/crm/components/AppHeader'
 import { LandingView } from './features/crm/views/LandingView'
+import { LoadingScreen } from './components/patterns/LoadingScreen'
 import { PageTitleManager } from './lib/pageTitle'
 import { UpgradeModal } from './features/billing/UpgradeModal'
 
@@ -49,7 +50,7 @@ export function App() {
       <SubscriptionProvider>
         <PageTitleManager />
         <UpgradeModal />
-        <Suspense fallback={<PageState />}>
+        <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/login" element={<Navigate to="/#signin" replace />} />
             <Route path="/signup" element={<Navigate to="/#auth" replace />} />

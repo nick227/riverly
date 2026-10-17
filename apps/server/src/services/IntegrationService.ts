@@ -171,7 +171,7 @@ export class IntegrationService {
           data: { status: 'ERROR', errorMessage: sanitized },
         })
       }
-      throw new Error(sanitized)
+      throw unprocessable(sanitized)
     }
 
     if (provider === 'EMAIL_SERVER') {

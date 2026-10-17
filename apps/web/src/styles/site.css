@@ -827,60 +827,50 @@
     padding-top: var(--space-2);
   }
 
-  /* ── Upcoming Features Grid (Clean & Pragmatic) ── */
-  .site-roadmap-section {
-    padding-top: var(--space-8);
-    padding-bottom: var(--space-8);
+  /* ── Sales closer: positioning + who it's for ── */
+  .site-closer {
+    padding-top: var(--space-16);
+    padding-bottom: var(--space-12);
+    gap: var(--space-10);
   }
-  .site-roadmap-grid {
+  .site-closer__head {
+    text-align: center;
+    align-items: center;
+  }
+  .site-closer__head .site-title {
+    max-width: 40rem;
+  }
+  .site-closer__grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-5);
   }
-  @media (max-width: 1024px) {
-    .site-roadmap-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+  @media (max-width: 900px) {
+    .site-closer__grid {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
-  @media (max-width: 640px) {
-    .site-roadmap-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-  .site-roadmap-card {
+  .site-closer__card {
     background: var(--color-surface);
     border: var(--border-width) solid var(--color-border);
+    border-top: 3px solid var(--brand-river);
     border-radius: var(--radius-xl);
     padding: var(--space-6);
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
   }
-  .site-roadmap-card:hover {
-    border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-sm);
-  }
-  .site-roadmap-card__icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-lg);
-    background: var(--brand-river-soft);
-    color: var(--brand-river);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .site-roadmap-card__title {
-    font-size: var(--text-base);
+  .site-closer__who {
+    font-size: var(--text-lg);
     font-weight: var(--weight-bold);
     color: var(--color-text);
     line-height: 1.25;
+    text-wrap: balance;
   }
-  .site-roadmap-card__desc {
-    font-size: var(--text-xs);
-    color: var(--color-muted);
-    line-height: 1.6;
+  .site-closer__desc {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.65;
   }
 
   /* ── Simple Focused Bottom Call to Action ── */

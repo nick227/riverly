@@ -3,7 +3,7 @@ import { Button } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
 import { Card, CardHeader, CardSection } from '@/components/patterns/Card'
 import { toast } from '@/components/patterns/Toast'
-import { useSubscription } from '@/lib/subscription'
+import { useSubscription, PREMIUM_PRICE } from '@/lib/subscription'
 
 export function BillingSettings() {
   const {
@@ -53,7 +53,7 @@ export function BillingSettings() {
                 </div>
                 <p className="text text--xs text--muted mt-1">
                   {isPremium
-                    ? `Billed ${billingCycle === 'annual' ? '$468/year ($39/mo)' : '$49/month'} via Stripe. 14-day money-back guarantee.`
+                    ? `Billed ${billingCycle === 'annual' ? `$${PREMIUM_PRICE.annual.billed}/year ($${PREMIUM_PRICE.annual.perMonth}/mo)` : `$${PREMIUM_PRICE.monthly.billed}/month`} via Stripe. 14-day money-back guarantee.`
                     : 'Basic pipeline and lead tracking. Upgrade to unlock email services, AI, reports, and live broadcasting.'}
                 </p>
               </div>

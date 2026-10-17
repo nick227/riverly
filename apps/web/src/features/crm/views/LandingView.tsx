@@ -4,9 +4,6 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
-  Bot,
-  Boxes,
-  Calendar,
   Check,
   Database,
   FileText,
@@ -851,59 +848,40 @@ export function LandingView() {
           </section>
         </div>
 
-        {/* ── Upcoming Features (Clean, pragmatic preview, NO noisy voting counters) ── */}
-        <section className="site-section site-roadmap-section">
-          <div className="site-section__head" style={{ textAlign: 'center', alignItems: 'center' }}>
-            <span className="site-eyebrow">
-              <Bot size={14} />
-              <span>What We&rsquo;re Building Next</span>
-            </span>
-            <h2 className="site-title">Continuous Improvements for Real Teams</h2>
+        {/* ── Sales closer: platform strengths ── */}
+        <section className="site-section site-closer">
+          <div className="site-section__head site-closer__head">
+            <h2 className="site-title">Every lead tracked from first call to finished job.</h2>
             <p className="site-lede">
-              Riverly is built closely alongside working contractors. Here are the tools currently in active engineering:
+              Riverly keeps each inquiry, call, email, and estimate in one place and shows your team the next step on
+              every open deal, so follow-ups happen on time and sales don&rsquo;t slip away.
             </p>
           </div>
 
-          <div className="site-roadmap-grid">
-            <div className="site-roadmap-card">
-              <div className="site-roadmap-card__icon">
-                <Smartphone size={20} />
-              </div>
-              <h3 className="site-roadmap-card__title">Mobile App &amp; Push Alerts</h3>
-              <p className="site-roadmap-card__desc">
-                Instant push alerts when a new inquiry arrives, one-tap dialing, and photo uploads directly from the job site.
+          <div className="site-closer__grid">
+            <article className="site-closer__card">
+              <h3 className="site-closer__who">Every open lead shows its owner and next follow-up</h3>
+              <p className="site-closer__desc">
+                Leads move through clear stages, from new inquiry to completed job. Each one shows who is responsible
+                and when the next follow-up is due, so nothing depends on someone remembering.
               </p>
-            </div>
+            </article>
 
-            <div className="site-roadmap-card">
-              <div className="site-roadmap-card__icon">
-                <Bot size={20} />
-              </div>
-              <h3 className="site-roadmap-card__title">AI Quote Drafting</h3>
-              <p className="site-roadmap-card__desc">
-                Turn job site inspection notes and dimensions into clear, structured estimates with one click.
+            <article className="site-closer__card">
+              <h3 className="site-closer__who">The full customer history on one page</h3>
+              <p className="site-closer__desc">
+                Calls, emails, notes, photos, and stage changes are recorded on the job as they happen. Anyone on your
+                team can open it and pick up the conversation without asking who spoke to the customer last.
               </p>
-            </div>
+            </article>
 
-            <div className="site-roadmap-card">
-              <div className="site-roadmap-card__icon">
-                <Calendar size={20} />
-              </div>
-              <h3 className="site-roadmap-card__title">Crew Scheduling &amp; Dispatch</h3>
-              <p className="site-roadmap-card__desc">
-                Visual job scheduling calendar to assign installation crews and keep field staff updated on project dates.
+            <article className="site-closer__card">
+              <h3 className="site-closer__who">Missed follow-ups flagged automatically</h3>
+              <p className="site-closer__desc">
+                One click shows leads nobody has contacted yet, follow-ups that are overdue, appointments coming up,
+                and jobs that have been quiet for a week, so you can act before a customer moves on.
               </p>
-            </div>
-
-            <div className="site-roadmap-card">
-              <div className="site-roadmap-card__icon">
-                <Boxes size={20} />
-              </div>
-              <h3 className="site-roadmap-card__title">Material Order Tracking</h3>
-              <p className="site-roadmap-card__desc">
-                Log distributor orders and track job-site material deliveries tied directly to the customer contract.
-              </p>
-            </div>
+            </article>
           </div>
         </section>
 

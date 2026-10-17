@@ -216,7 +216,27 @@ export function CompanySettings() {
   const firstName = displayName.split(' ')[0] || me?.displayName?.split(' ')[0] || 'Partner'
 
   return (
-    <div className="stack gap-6">
+    <div className="block gap-6">
+      {/* ── Hero Banner ── */}
+      <div className="onboarding-hero">
+        <div className="onboarding-hero__content">
+          <span className="onboarding-eyebrow">Workspace Setup</span>
+          <h2 className="onboarding-hero__heading">Welcome, {firstName}</h2>
+          <p className="onboarding-hero__lede">
+            Configure your contractor company profile, trade focus, and initial team setup.
+          </p>
+        </div>
+        <div className="row gap-2 items-center">
+          {hasCompletedOnboarding ? (
+            <Badge tone="success">✓ Onboarding Complete</Badge>
+          ) : (
+            <Badge tone="warning">Setup in Progress</Badge>
+          )}
+          <Badge tone={isPremium ? 'accent' : 'neutral'}>
+            {isPremium ? '✨ Premium Pro' : 'Free CRM'}
+          </Badge>
+        </div>
+      </div>
 
       {/* ── Main Form Stack ── */}
       <form onSubmit={handleSave} className="stack gap-6">
@@ -435,6 +455,48 @@ export function CompanySettings() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* ── Footer Actions Bar ── */}
+        <div className="onboarding-footer-actions">
+          <div className="row gap-3 items-center">
+            <Button
+              type="submit"
+              variant="primary"
+              loading={isSubmitting}
+              disabled={!displayName.trim() || !companyName.trim()}
+              className="row gap-2 items-center"
+            >
+              {hasCompletedOnboarding ? (
+                <>
+                  <Check size={16} />
+                  <span>Save Workspace Changes</span>
+                </>
+              ) : (
+                <>
+                  <span>Launch Riverly CRM</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </Button>
+
+            {hasCompletedOnboarding && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/')}
+              >
+                Dashboard
+              </Button>
+            )}
+          </div>
+
+          <span className="text text--xs text--muted">
+            Need to manage team permissions or roles? Visit{' '}
+            <Link to="/settings/team" className="link font-semibold">
+              Team Settings
+            </Link>.
+          </span>
         </div>
 
       </form>

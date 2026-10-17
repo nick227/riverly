@@ -127,9 +127,6 @@ export function describeActivity(item: Item, { view, showSubject }: DescribeCtx)
         line: <>New lead <strong>{p.name}</strong> from {p.sourceName} may match an existing contact.</>,
         content: (
           <div>
-            <Link className="button button--secondary button--sm" to="/contacts/review">
-              Review match
-            </Link>
           </div>
         ),
       }

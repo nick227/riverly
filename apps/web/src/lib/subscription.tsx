@@ -4,6 +4,14 @@ import { useSession } from './session'
 export type SubscriptionPlan = 'free' | 'premium'
 export type BillingCycle = 'monthly' | 'annual'
 
+/** Premium pricing in USD. Annual is billed once a year at the per-month rate x 12. */
+export const PREMIUM_PRICE: Record<BillingCycle, { perMonth: number; billed: number }> = {
+  monthly: { perMonth: 29, billed: 29 },
+  annual: { perMonth: 8, billed: 96 },
+}
+export const ANNUAL_SAVINGS_PERCENT = Math.round((1 - PREMIUM_PRICE.annual.perMonth / PREMIUM_PRICE.monthly.perMonth) * 100)
+export const ANNUAL_SAVINGS_AMOUNT = PREMIUM_PRICE.monthly.perMonth * 12 - PREMIUM_PRICE.annual.billed
+
 export interface PaymentDetails {
   brand: 'visa' | 'mastercard' | 'amex' | 'discover' | 'generic'
   last4: string
@@ -180,10 +188,30 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>
 }
 
+const DEFAULT_SUBSCRIPTION_VALUE: SubscriptionContextValue = {
+  plan: 'free',
+  billingCycle: 'annual',
+  status: 'active',
+  paymentDetails: null,
+  isUpgradeModalOpen: false,
+  upgradeModalSource: 'default',
+  isPostRegistration: false,
+  isPremium: false,
+  features: {
+    crm: true,
+    emailServices: false,
+    aiAutomations: false,
+    dataReports: false,
+    liveBroadcasting: false,
+  },
+  openUpgradeModal: () => {},
+  closeUpgradeModal: () => {},
+  upgradeToPremium: () => {},
+  downgradeToFree: () => {},
+  setBillingCycle: () => {},
+}
+
 export function useSubscription() {
   const ctx = useContext(SubscriptionContext)
-  if (!ctx) {
-    throw new Error('useSubscription must be used within a SubscriptionProvider')
-  }
-  return ctx
+  return ctx ?? DEFAULT_SUBSCRIPTION_VALUE
 }

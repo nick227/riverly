@@ -75,8 +75,7 @@ export default function HomeView() {
                 <Compass size={18} />
               </div>
               <div>
-                <strong className="text--sm block">Complete Your Workspace Setup</strong>
-                <span className="text--xs text--muted">Personalize your profile, company trade, and invite your crew in 60 seconds.</span>
+                <strong className="text--sm block">Setup Your Workspace</strong>
               </div>
             </div>
             <Link to="/settings/company" className="button button--primary button--sm row gap-1 items-center">
