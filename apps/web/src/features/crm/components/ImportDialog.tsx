@@ -1106,7 +1106,7 @@ function ZapierImportTab({ onClose }: { onClose: () => void }) {
         name="Zapier"
         category="Inbound Webhook"
         subtitle="Receive leads in real time from Facebook Ads, Calendly, and forms."
-        statusBadge={<Badge tone="success"><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block', marginRight: 6, flexShrink: 0 }} />Active</Badge>}
+        statusBadge={<Badge tone="success"><span style={{ width: 'var(--space-1-5)', height: 'var(--space-1-5)', borderRadius: '50%', background: 'currentColor', display: 'inline-block', marginRight: 'var(--space-1-5)', flexShrink: 0 }} />Active</Badge>}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 stack gap-3.5">

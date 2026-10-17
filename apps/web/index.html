@@ -15,10 +15,19 @@
     <meta name="twitter:title" content="Riverly CRM — Roofing Contractor Workflow & Pipeline" />
     <meta name="twitter:description" content="Riverly CRM — Move inquiries seamlessly from lead to completed job. Unified customer records, multi-stage roofing pipeline, and real-time team river." />
     <script>
-      // Apply a saved theme before first paint (no flash).
+      // Apply saved theme preferences before first paint (no flash).
       try {
-        var t = localStorage.getItem('riverly.theme')
-        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
+        var raw = localStorage.getItem('riverly.theme_preferences')
+        if (raw) {
+          var p = JSON.parse(raw)
+          if (p.theme) document.documentElement.dataset.theme = p.theme
+          if (p.font) document.documentElement.dataset.font = p.font
+          if (p.density) document.documentElement.dataset.density = p.density
+          if (p.radius) document.documentElement.dataset.radius = p.radius
+        } else {
+          var t = localStorage.getItem('riverly.theme')
+          if (t) document.documentElement.dataset.theme = t
+        }
       } catch (e) {}
     </script>
   </head>

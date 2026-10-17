@@ -71,7 +71,7 @@ export default function HomeView() {
         {!hasCompletedOnboarding && (
           <div className="row row--between items-center p-3 mb-4" style={{ background: 'var(--color-surface-subtle)', border: 'var(--border-width) solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
             <div className="row gap-3 items-center">
-              <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'var(--brand-river-soft)', color: 'var(--brand-river)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 'var(--control-height)', height: 'var(--control-height)', borderRadius: 'var(--radius-full)', background: 'var(--brand-river-soft)', color: 'var(--brand-river)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Compass size={18} />
               </div>
               <div>

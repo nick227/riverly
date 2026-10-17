@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Activity, Building2, CreditCard, Compass, House, LogOut, Moon, Search, Sparkles, Sun, UserRound, Users, Zap } from 'lucide-react'
+import { Activity, Building2, CreditCard, Compass, House, LogOut, Moon, Palette, Search, Sparkles, Sun, UserRound, Users, Zap } from 'lucide-react'
 import { useLogout, useOpportunities, useSwitchOrganization } from '@project/sdk'
 import { cx } from '@/lib/cx'
 import { useSession } from '@/lib/session'
@@ -12,6 +12,7 @@ import { Menu, MenuDivider, MenuItem, MenuLabel } from '@/components/patterns/Me
 import { toast } from '@/components/patterns/Toast'
 import { loadingScreen } from '@/components/patterns/LoadingScreen'
 import { useWorkflowView } from '../config/workflow'
+import { ThemeModal } from './ThemeModal'
 
 export function AppHeader() {
   const { me, org, can } = useSession()
@@ -20,6 +21,7 @@ export function AppHeader() {
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
   const { isPremium, openUpgradeModal } = useSubscription()
+  const [themeModalOpen, setThemeModalOpen] = useState(false)
   if (!me) return null
   const signOut = () => {
     const screen = loadingScreen.start('Signing out')
@@ -95,8 +97,11 @@ export function AppHeader() {
                 <MenuItem icon={<CreditCard />} onSelect={() => (close(), navigate('/settings/billing'))}>
                   Billing &amp; plan ({isPremium ? 'Pro' : 'Free'})
                 </MenuItem>
+                <MenuItem icon={<Palette />} onSelect={() => (close(), setThemeModalOpen(true))}>
+                  Theme &amp; appearance
+                </MenuItem>
                 <MenuItem icon={theme === 'dark' ? <Sun /> : <Moon />} onSelect={toggle}>
-                  {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </MenuItem>
                 {me.memberships.length > 1 ? (
                   <>
@@ -147,6 +152,7 @@ export function AppHeader() {
           Profile
         </NavLink>
       </nav>
+      <ThemeModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
     </>
   )
 }

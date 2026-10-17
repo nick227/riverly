@@ -244,9 +244,6 @@ export function CompanySettings() {
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
             <h3 className="heading heading--3">01 · Profile</h3>
-            <p className="text text--sm text--muted">
-              Your name and role displayed on contacts, job stages, and customer timelines.
-            </p>
           </div>
 
           <div className="grid grid--3 gap-4 mt-4">
@@ -292,9 +289,6 @@ export function CompanySettings() {
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
             <h3 className="heading heading--3">02 · Company</h3>
-            <p className="text text--sm text--muted">
-              Your business trade focus, team operational scale, and workspace preferences.
-            </p>
           </div>
 
           <div className="grid grid--2 gap-4 mt-4">
@@ -346,7 +340,7 @@ export function CompanySettings() {
               )}
             </Field>
 
-            <Field label="Timezone" hint="Dates display in this timezone; everything is stored in UTC.">
+            <Field label="Timezone">
               {(id) => (
                 <Input
                   id={id}
@@ -359,7 +353,7 @@ export function CompanySettings() {
           </div>
 
           <div className="grid grid--2 gap-4 mt-4">
-            <Field label="Google Business / Review URL (Optional)" hint="Where review requests send customers (Google, Yelp…). Required for Request review.">
+            <Field label="Google Business / Review URL (Optional)">
               {(id) => (
                 <Input
                   id={id}
@@ -371,7 +365,7 @@ export function CompanySettings() {
               )}
             </Field>
 
-            <Field label="Company Logo URL (Optional)" hint="Used on header branding, estimates, and documentation.">
+            <Field label="Company Logo URL (Optional)">
               {(id) => (
                 <Input
                   id={id}
@@ -389,7 +383,7 @@ export function CompanySettings() {
               <img
                 src={logoUrl}
                 alt="Company logo preview"
-                style={{ height: 32, maxWidth: 140, objectFit: 'contain' }}
+                style={{ height: 'var(--control-height-xs)', maxWidth: 140, objectFit: 'contain' }}
                 onError={(e) => {
                   ;(e.target as HTMLElement).style.display = 'none'
                 }}
@@ -403,9 +397,6 @@ export function CompanySettings() {
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
             <h3 className="heading heading--3">03 · Team</h3>
-            <p className="text text--sm text--muted">
-              Add your estimators, managers, and field crew members, or invite them anytime in Team Settings.
-            </p>
           </div>
 
           <div className="stack gap-3 mt-4">
@@ -491,12 +482,6 @@ export function CompanySettings() {
             )}
           </div>
 
-          <span className="text text--xs text--muted">
-            Need to manage team permissions or roles? Visit{' '}
-            <Link to="/settings/team" className="link font-semibold">
-              Team Settings
-            </Link>.
-          </span>
         </div>
 
       </form>

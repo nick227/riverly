@@ -11,11 +11,12 @@ import { IntegrationsSettings } from './settings/IntegrationsSettings'
 import { ReportsSettings } from './settings/ReportsSettings'
 import { DiagnosticsSettings } from './settings/DiagnosticsSettings'
 import { BillingSettings } from './settings/BillingSettings'
+import { AppearanceSettings } from './settings/AppearanceSettings'
 
 interface SettingsSection {
   path: string
   label: string
-  permission: Permission
+  permission?: Permission
   Component: React.ComponentType
 }
 
@@ -26,6 +27,7 @@ const SECTIONS: SettingsSection[] = [
   { path: 'email', label: 'Email', permission: 'settings.manage', Component: EmailSettings },
   { path: 'integrations', label: 'Integrations', permission: 'settings.manage', Component: IntegrationsSettings },
   { path: 'reports', label: 'Reports', permission: 'reports.view', Component: ReportsSettings },
+  { path: 'appearance', label: 'Appearance', Component: AppearanceSettings },
   { path: 'billing', label: 'Billing', permission: 'settings.manage', Component: BillingSettings },
 ]
 
@@ -33,7 +35,7 @@ const SECTIONS: SettingsSection[] = [
 export default function SettingsView() {
   const { can } = useSession()
   const location = useLocation()
-  const sections = SECTIONS.filter((s) => can(s.permission))
+  const sections = SECTIONS.filter((s) => !s.permission || can(s.permission))
   const activeSection = SECTIONS.find((s) => location.pathname.includes(`/settings/${s.path}`))
   const sectionLabel = activeSection ? `${activeSection.label} Settings` : 'Company Settings'
 

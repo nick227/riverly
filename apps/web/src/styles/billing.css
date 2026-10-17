@@ -71,8 +71,8 @@
   }
 
   .upgrade-brand__mark {
-    width: 28px;
-    height: 28px;
+    width: var(--avatar-sm);
+    height: var(--avatar-sm);
     flex-shrink: 0;
   }
   .upgrade-brand__mark rect {
@@ -92,8 +92,8 @@
   }
 
   .upgrade-modal__close {
-    width: 32px;
-    height: 32px;
+    width: var(--control-height-xs);
+    height: var(--control-height-xs);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -160,11 +160,11 @@
   .billing-switcher {
     display: inline-flex;
     flex-shrink: 0;
-    padding: 4px;
+    padding: var(--space-1);
     background: var(--color-surface-subtle);
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-full);
-    gap: 4px;
+    gap: var(--space-1);
   }
 
   .billing-switcher__item {
@@ -189,7 +189,7 @@
   }
 
   .billing-switcher__save {
-    padding: 2px 8px;
+    padding: var(--space-0-5) var(--space-2);
     background: var(--brand-river-soft);
     color: var(--brand-river);
     font-size: var(--text-xs);
@@ -261,7 +261,7 @@
   }
 
   .upgrade-tier-pill {
-    padding: 2px 10px;
+    padding: var(--space-0-5) var(--space-2-5);
     font-size: var(--text-xs);
     font-weight: var(--weight-medium);
     color: var(--color-muted);
@@ -323,7 +323,7 @@
 
   .upgrade-feature-item__check {
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
     color: var(--color-success);
   }
 
@@ -349,8 +349,8 @@
   }
 
   .upgrade-pro-feature__icon {
-    width: 34px;
-    height: 34px;
+    width: var(--icon-box-size);
+    height: var(--icon-box-size);
     border-radius: var(--radius-sm);
     background: var(--brand-river-soft);
     color: var(--brand-river);
@@ -371,7 +371,7 @@
     flex-direction: column;
     gap: var(--space-2);
     margin: 0;
-    padding: 0 0 0 calc(34px + var(--space-3));
+    padding: 0 0 0 calc(var(--icon-box-size) + var(--space-3));
     list-style: none;
   }
 
@@ -386,8 +386,8 @@
     position: absolute;
     left: calc(-1 * var(--space-3));
     top: 0.6em;
-    width: 4px;
-    height: 4px;
+    width: var(--space-1);
+    height: var(--space-1);
     border-radius: 50%;
     background: var(--brand-river);
   }
@@ -427,7 +427,7 @@
 
   .upgrade-cta-button {
     flex-shrink: 0;
-    height: 46px;
+    height: var(--control-height-lg);
     padding: 0 var(--space-6);
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
@@ -462,14 +462,14 @@
   .stripe-badge-secure {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-1);
     font-size: 11px;
     color: var(--color-muted);
   }
 
   .stripe-mode-toggle {
     font-size: 11px;
-    padding: 3px 8px;
+    padding: var(--space-0-5) var(--space-2);
     border-radius: 9999px;
     border: var(--border-width) solid var(--color-border);
     background: var(--color-surface-subtle);
@@ -478,7 +478,7 @@
   }
 
   .stripe-key-banner {
-    padding: 10px;
+    padding: var(--space-2-5);
     background: var(--color-surface-subtle);
     border: var(--border-width) dashed var(--color-border-strong);
     border-radius: var(--radius-md);
@@ -502,7 +502,7 @@
   .stripe-order-summary__title {
     font-size: var(--text-base);
     font-weight: var(--weight-bold);
-    margin: 2px 0;
+    margin: var(--space-0-5) 0;
   }
 
   .stripe-order-summary__desc {
@@ -522,12 +522,12 @@
   .stripe-order-summary__footer {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     font-size: 11px;
     color: var(--color-muted);
     border-top: var(--border-width) solid var(--color-border);
-    margin-top: 10px;
-    padding-top: 8px;
+    margin-top: var(--space-2-5);
+    padding-top: var(--space-2);
   }
 
   .stripe-test-hint {
@@ -545,7 +545,7 @@
 
   .stripe-input-card-brand {
     position: absolute;
-    left: 10px;
+    left: var(--space-2-5);
     z-index: 2;
     display: flex;
     align-items: center;
@@ -554,7 +554,7 @@
   .card-brand-pill {
     font-size: 9px;
     font-weight: 800;
-    padding: 2px 4px;
+    padding: var(--space-0-5) var(--space-1);
     border-radius: 3px;
     letter-spacing: 0.02em;
   }
@@ -576,19 +576,19 @@
   }
 
   .stripe-input-card {
-    padding-left: 48px !important;
+    padding-left: var(--space-12) !important;
     font-family: var(--font-mono);
     letter-spacing: 0.06em;
   }
 
   .stripe-input-card-secure {
     position: absolute;
-    right: 12px;
+    right: var(--space-3);
     pointer-events: none;
   }
 
   .stripe-submit-button {
-    height: 46px;
+    height: var(--control-height-lg);
     font-size: var(--text-sm);
     font-weight: var(--weight-bold);
     background: var(--brand-river);
@@ -599,7 +599,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--space-1-5);
     font-size: 11px;
     color: var(--color-muted);
     text-align: center;
@@ -622,7 +622,7 @@
     border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-1-5);
   }
 
   /* ── Standard Full-Width, Left-Aligned Onboarding (Zero Drop Shadows) ── */
@@ -723,7 +723,7 @@
   .onboarding-footer-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     flex-wrap: wrap;
     gap: var(--space-4);
     padding: var(--space-4) 0;
@@ -733,8 +733,8 @@
   .crm-badge--pro {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
+    gap: var(--space-1);
+    padding: var(--space-0-5) var(--space-2);
     background: linear-gradient(135deg, var(--brand-river), var(--brand-ink));
     color: var(--white);
     font-size: 11px;
@@ -746,8 +746,8 @@
   .crm-badge--upgrade {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 10px;
+    gap: var(--space-1);
+    padding: var(--space-0-5) var(--space-2-5);
     background: var(--color-surface-subtle);
     border: var(--border-width) solid var(--color-border-strong);
     color: var(--color-text);
