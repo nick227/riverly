@@ -187,6 +187,7 @@
     gap: var(--space-1-5);
     border: none;
     background: transparent;
+    justify-content: center;
   }
   .crm-pipeline--compact .crm-pipeline__bar {
     height: var(--space-1);
@@ -214,7 +215,7 @@
       scrollbar-width: none;
     }
     .crm-pipeline:not(.crm-pipeline--compact) .crm-pipeline__segment {
-      scroll-snap-align: start; padding-inline: var(--space-3);
+      scroll-snap-align: start; 
     }
     .crm-pipeline:not(.crm-pipeline--compact) .crm-pipeline__label { font-size: var(--text-sm); }
   }
@@ -504,8 +505,10 @@
   .crm-job-row__cell { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-sm); }
   .crm-job-row .crm-pipeline--compact { align-self: center; }
   /* In rows only the current stage is named; the bars carry the rest of the progress. */
+  /* Hidden labels still occupy space; keep them on one line so every bar aligns. */
+  .crm-job-row .crm-pipeline__label { white-space: nowrap; overflow: hidden; }
   .crm-job-row .crm-pipeline__segment:not(.is-current) .crm-pipeline__label { visibility: hidden; }
-  .crm-job-row .crm-pipeline__segment.is-current .crm-pipeline__label { overflow: visible; white-space: nowrap; }
+  .crm-job-row .crm-pipeline__segment.is-current .crm-pipeline__label { overflow: visible; }
   /* Late stages name themselves leftwards so the label never runs past the row edge. */
   .crm-job-row .crm-pipeline__segment.is-current:nth-last-child(-n + 2) .crm-pipeline__label { align-self: flex-end; }
   @media (max-width: 1180px) {
