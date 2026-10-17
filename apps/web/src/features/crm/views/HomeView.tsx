@@ -69,9 +69,9 @@ export default function HomeView() {
 
       <div className="crm-home__welcome">
         {!hasCompletedOnboarding && (
-          <div className="row row--between items-center p-3 mb-4" style={{ background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <div className="row row--between items-center p-3 mb-4" style={{ background: 'var(--color-surface-subtle)', border: 'var(--border-width) solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
             <div className="row gap-3 items-center">
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-river-soft, #e6f2f3)', color: 'var(--brand-river, #1f6f7a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'var(--brand-river-soft)', color: 'var(--brand-river)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Compass size={18} />
               </div>
               <div>

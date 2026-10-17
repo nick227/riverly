@@ -17,7 +17,7 @@ export class SenderService {
     input: { provider: EmailProvider; fromName: string; fromEmail: string; replyTo?: string | null; apiKey?: string | null; isDefault?: boolean },
   ) {
     const ctx = requirePermission(auth, 'settings.manage')
-    if (input.provider === 'DEV_LOG' && !config.devEmailAllowed) throw unprocessable('The development transport is disabled in this environment')
+    if (input.provider === 'DEV_LOG' && !config.devEmailAllowed) throw unprocessable('The development transport is disabled')
     if (input.provider === 'RESEND' && !input.apiKey && !config.RESEND_API_KEY)
       throw unprocessable('Enter the company’s Resend API key (or configure a platform key)')
     const row = await db.$transaction(async (tx) => {
@@ -32,7 +32,7 @@ export class SenderService {
           credentialCiphertext: input.apiKey ? encryptSecret(input.apiKey.trim()) : null,
           isDefault: input.isDefault ?? false,
           ...(input.provider === 'DEV_LOG'
-            ? { verification: 'VERIFIED', verifiedAt: new Date(), verificationDetail: 'Development transport — messages never leave this machine.' }
+            ? { verification: 'VERIFIED', verifiedAt: new Date(), verificationDetail: 'Development mode' }
             : { verification: 'UNVERIFIED' }),
         },
       })

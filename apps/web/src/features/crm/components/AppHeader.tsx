@@ -68,7 +68,7 @@ export function AppHeader() {
               onClick={() => openUpgradeModal('header')}
               title="Unlock Email, AI, Reports & Broadcasting"
             >
-              <Zap size={11} /> Free · Upgrade
+              <Zap size={11} /> Upgrade
             </button>
           )}
           <Menu

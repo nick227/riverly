@@ -5,13 +5,6 @@
 
 @layer tokens {
   :root {
-    --brand-ink: #0d2b33;
-    --brand-river: #1f6f7a;
-    --brand-river-soft: #e6f2f3;
-    --brand-glow: rgb(31 111 122 / 0.12);
-    --brand-dark-bg: #090e11;
-    --brand-dark-surface: #111a1f;
-    --brand-dark-border: rgba(255, 255, 255, 0.08);
     --site-max-width: 1240px;
     --site-section-gap: var(--space-24);
     --site-title: clamp(2rem, 3.5vw, 3rem);
@@ -22,15 +15,6 @@
     :root {
       --site-section-gap: var(--space-16);
     }
-  }
-  :root[data-theme='dark'] {
-    --brand-ink: #e6f2f3;
-    --brand-river: #6cc3cc;
-    --brand-river-soft: #112a2d;
-    --brand-glow: rgb(108 195 204 / 0.14);
-    --brand-dark-bg: #05080a;
-    --brand-dark-surface: #0b1216;
-    --brand-dark-border: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -897,7 +881,7 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(circle, rgba(31, 111, 122, 0.2) 0%, transparent 60%);
+    background: radial-gradient(circle, var(--brand-glow) 0%, transparent 60%);
     pointer-events: none;
   }
   .site-cta-banner__title {
@@ -905,7 +889,7 @@
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.03em;
-    color: #ffffff;
+    color: var(--white);
     max-width: 38rem;
     position: relative;
     margin: 0;
@@ -1042,9 +1026,9 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(31, 111, 122, 0.25);
-    color: #6cc3cc;
-    border: 1px solid rgba(108, 195, 204, 0.3);
+    background: var(--brand-glow);
+    color: var(--brand-river);
+    border: var(--border-width) solid var(--brand-dark-border);
     padding: 4px 12px;
     border-radius: var(--radius-full);
     font-size: var(--text-xs);
@@ -1056,7 +1040,7 @@
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: -0.025em;
-    color: #ffffff;
+    color: var(--white);
     text-wrap: balance;
   }
   .site-auth-showcase__desc {
@@ -1075,13 +1059,13 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: var(--border-width) solid var(--brand-dark-border);
     border-radius: var(--radius-lg);
   }
   .site-auth-feature-pill__title {
     font-size: var(--text-sm);
     font-weight: var(--weight-semibold);
-    color: #ffffff;
+    color: var(--white);
   }
   .site-auth-feature-pill__desc {
     font-size: var(--text-xs);
@@ -1090,7 +1074,7 @@
   .site-auth-showcase__preview {
     border-radius: var(--radius-lg);
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: var(--border-width) solid var(--brand-dark-border);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     margin-top: var(--space-2);
   }

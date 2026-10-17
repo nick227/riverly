@@ -16,10 +16,11 @@ import { dateTime, fromLocalInput, relative } from '@/lib/format'
 import { usePageTitle } from '@/lib/pageTitle'
 import { useSession } from '@/lib/session'
 import { useDebounce } from '@/lib/useDebounce'
-import { ImportDialog } from '../components/ImportDialog'
+import { ImportDialog, type ImportTabKey } from '../components/ImportDialog'
 import { OwnerSelect, StatusSelect } from '../components/JobRowControls'
 import { MemberSelect } from '../components/MemberSelect'
 import { PipelineBar } from '../components/PipelineBar'
+import { ZeroContacts } from '../components/ZeroContacts'
 import { useWorkflowView, type WorkflowView } from '../config/workflow'
 
 type Sort = 'recent' | 'oldest' | 'stale'
@@ -43,6 +44,7 @@ export default function ContactsView() {
   const { can } = useSession()
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [importTab, setImportTab] = useState<ImportTabKey>('csv')
   const [q, setQ] = useState(params.get('q') ?? '')
   const debounced = useDebounce(q.trim(), 250)
   const stageId = params.get('stage') ?? ''
@@ -50,6 +52,11 @@ export default function ContactsView() {
   const status = params.get('status') ?? 'ACTIVE'
   const sort = (params.get('sort') as Sort) || 'recent'
   const attention = (params.get('attention') as Attention) || ''
+
+  const openImport = (tab: ImportTabKey = 'csv') => {
+    setImportTab(tab)
+    setImporting(true)
+  }
 
   const activeAttention = ATTENTION.find((a) => a.value === attention)?.label
   const activeStage = view?.stage(stageId)?.label
@@ -85,6 +92,9 @@ export default function ContactsView() {
   const total = Object.values(counts).reduce((a, b) => a + b, 0)
   const list = jobs.data?.pages.flatMap((p) => p.data) ?? []
 
+  const isPreviewEmpty = params.get('preview_empty') === '1'
+  const hasZeroContacts = isPreviewEmpty || (!jobs.isLoading && view && total === 0 && !debounced && !stageId && !owner && !attention)
+
   return (
     <main className="crm-page">
       <div className="crm-page__header">
@@ -93,87 +103,104 @@ export default function ContactsView() {
         </div>
         <div className="action-bar">
           {can('imports.run') ? (
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              <Upload aria-hidden /> Import
+            <Button variant="secondary" onClick={() => openImport('csv')}>
+              <Upload aria-hidden /> Import CSV
             </Button>
           ) : null}
           <Button variant="primary" onClick={() => setAdding(true)}>
-            <Plus aria-hidden /> Add contact
+            <Plus aria-hidden /> New contact
           </Button>
         </div>
       </div>
 
       <div className="stack gap-4">
-        <div className="row row--wrap gap-3">
-          <div className="crm-header__search" style={{ marginLeft: 0, maxWidth: 360 }}>
-            <Search aria-hidden />
-            <Input type="search" aria-label="Search contacts" placeholder="Search name, email, phone, address" value={q} onChange={(e) => (setQ(e.target.value), set('q', e.target.value.trim()))} />
-          </div>
-          <Select aria-label="Owner" value={owner} onChange={(e) => set('owner', e.target.value)} options={[{ value: 'me', label: 'Mine' }, { value: 'none', label: 'Unassigned' }]} placeholder="Everyone" style={{ width: 150 }} />
-          <Select
-            aria-label="Status"
-            value={status}
-            onChange={(e) => set('status', e.target.value === 'ACTIVE' ? '' : e.target.value)}
-            options={[
-              { value: 'ACTIVE', label: 'Active' },
-              { value: 'ON_HOLD', label: 'On hold' },
-              { value: 'LOST', label: 'Lost' },
-              { value: 'ALL', label: 'All statuses' },
-            ]}
-            style={{ width: 150 }}
+        {hasZeroContacts && view ? (
+          <ZeroContacts
+            onImport={openImport}
+            onAddContact={() => setAdding(true)}
+            canImport={can('imports.run')}
+            opportunityTerm={view.terms.opportunity}
           />
-          <Select aria-label="Needs attention" value={attention} onChange={(e) => set('attention', e.target.value)} options={ATTENTION.map(({ value, label }) => ({ value, label }))} placeholder="Needs attention" style={{ width: 210 }} />
-          <div className="grow" />
-          <Segmented<Sort> label="Sort by" value={sort} onChange={(v) => set('sort', v === 'recent' ? '' : v)} options={SORTS} />
-        </div>
-
-        {view ? (
-          <Segmented
-            label="Stage"
-            value={stageId}
-            onChange={(v) => set('stage', v)}
-            options={[{ value: '', label: 'All', count: total }, ...view.active.map((s) => ({ value: s.id, label: s.label, count: counts[s.id] ?? 0 }))]}
-          />
-        ) : null}
-
-        {jobs.isLoading || !view ? (
-          <SkeletonList rows={6} height={60} />
-        ) : jobs.error ? (
-          <ErrorState error={jobs.error} onRetry={() => void jobs.refetch()} />
-        ) : list.length === 0 ? (
-          <Card>
-            <EmptyState
-              title={debounced ? 'No jobs match that search' : attention ? ATTENTION.find((a) => a.value === attention)!.empty : 'No jobs here yet'}
-              action={
-                <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
-                  Add contact
-                </Button>
-              }
-            />
-          </Card>
         ) : (
-          <div className="crm-job-list">
-            <div className="crm-job-row crm-job-row--head" aria-hidden>
-              <span>Contact</span>
-              <span>Stage</span>
-              <span>Assigned to</span>
-              <span>Reference</span>
-              <span>Created</span>
-              <span>Status</span>
+          <>
+            <div className="row row--wrap gap-3">
+              <div className="crm-header__search" style={{ marginLeft: 0, maxWidth: 360 }}>
+                <Search aria-hidden />
+                <Input type="search" aria-label="Search contacts" placeholder="Search name, email, phone, address" value={q} onChange={(e) => (setQ(e.target.value), set('q', e.target.value.trim()))} />
+              </div>
+              <Select aria-label="Owner" value={owner} onChange={(e) => set('owner', e.target.value)} options={[{ value: 'me', label: 'Mine' }, { value: 'none', label: 'Unassigned' }]} placeholder="Everyone" style={{ width: 150 }} />
+              <Select
+                aria-label="Status"
+                value={status}
+                onChange={(e) => set('status', e.target.value === 'ACTIVE' ? '' : e.target.value)}
+                options={[
+                  { value: 'ACTIVE', label: 'Active' },
+                  { value: 'ON_HOLD', label: 'On hold' },
+                  { value: 'LOST', label: 'Lost' },
+                  { value: 'ALL', label: 'All statuses' },
+                ]}
+                style={{ width: 150 }}
+              />
+              <Select aria-label="Needs attention" value={attention} onChange={(e) => set('attention', e.target.value)} options={ATTENTION.map(({ value, label }) => ({ value, label }))} placeholder="Needs attention" style={{ width: 210 }} />
+              <div className="grow" />
+              <Segmented<Sort> label="Sort by" value={sort} onChange={(v) => set('sort', v === 'recent' ? '' : v)} options={SORTS} />
             </div>
-            {list.map((j) => (
-              <JobRow key={j.id} job={j} view={view} />
-            ))}
-          </div>
+
+            {view ? (
+              <Segmented
+                label="Stage"
+                value={stageId}
+                onChange={(v) => set('stage', v)}
+                options={[{ value: '', label: 'All', count: total }, ...view.active.map((s) => ({ value: s.id, label: s.label, count: counts[s.id] ?? 0 }))]}
+              />
+            ) : null}
+
+            {jobs.isLoading || !view ? (
+              <SkeletonList rows={6} height={60} />
+            ) : jobs.error ? (
+              <ErrorState error={jobs.error} onRetry={() => void jobs.refetch()} />
+            ) : list.length === 0 ? (
+              <Card>
+                <EmptyState
+                  title={debounced ? 'No jobs match that search' : attention ? ATTENTION.find((a) => a.value === attention)!.empty : 'No contacts in this view'}
+                  action={
+                    debounced ? (
+                      <Button variant="secondary" size="sm" onClick={() => (setQ(''), set('q', ''))}>
+                        Clear search
+                      </Button>
+                    ) : (
+                      <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+                        Add contact
+                      </Button>
+                    )
+                  }
+                />
+              </Card>
+            ) : (
+              <div className="crm-job-list">
+                <div className="crm-job-row crm-job-row--head" aria-hidden>
+                  <span>Contact</span>
+                  <span>Stage</span>
+                  <span>Assigned to</span>
+                  <span>Reference</span>
+                  <span>Created</span>
+                  <span>Status</span>
+                </div>
+                {list.map((j) => (
+                  <JobRow key={j.id} job={j} view={view} />
+                ))}
+              </div>
+            )}
+            {jobs.hasNextPage ? (
+              <Button variant="ghost" loading={jobs.isFetchingNextPage} onClick={() => void jobs.fetchNextPage()} style={{ alignSelf: 'center' }}>
+                Load more
+              </Button>
+            ) : null}
+          </>
         )}
-        {jobs.hasNextPage ? (
-          <Button variant="ghost" loading={jobs.isFetchingNextPage} onClick={() => void jobs.fetchNextPage()} style={{ alignSelf: 'center' }}>
-            Load more
-          </Button>
-        ) : null}
       </div>
       {adding && view ? <NewContactOverlay view={view} onClose={() => setAdding(false)} /> : null}
-      {importing ? <ImportDialog onClose={() => setImporting(false)} /> : null}
+      {importing ? <ImportDialog initialTab={importTab} onClose={() => setImporting(false)} /> : null}
     </main>
   )
 }

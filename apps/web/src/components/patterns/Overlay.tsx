@@ -19,6 +19,7 @@ export function Overlay({
   footer,
   children,
   variant = 'modal',
+  className,
 }: {
   open: boolean
   onRequestClose: () => void
@@ -27,6 +28,7 @@ export function Overlay({
   footer?: ReactNode
   children: ReactNode
   variant?: OverlayVariant
+  className?: string
 }) {
   const panel = useRef<HTMLDivElement>(null)
   const opener = useRef<Element | null>(null)
@@ -69,7 +71,7 @@ export function Overlay({
 
   if (!open) return null
   return createPortal(
-    <div className={cx('overlay', variant !== 'modal' && `overlay--${variant}`)}>
+    <div className={cx('overlay', variant !== 'modal' && `overlay--${variant}`, className)}>
       <div className="overlay__backdrop" onClick={() => closeRef.current()} />
       <div className="overlay__panel" ref={panel} role="dialog" aria-modal="true" aria-labelledby="overlay-title" tabIndex={-1}>
         <div className="overlay__header">

@@ -22,24 +22,12 @@ import { Notice, SkeletonList } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
 import { relative } from '@/lib/format'
 import { useWorkflowView } from '../../config/workflow'
+import { EmailRulesSection } from './email-rules/EmailRulesSection'
 
 export function EmailSettings() {
   return (
     <div className="stack gap-6">
-      <Card style={{ background: 'var(--color-surface-subtle)', borderLeft: '4px solid var(--color-accent)' }}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="stack gap-1">
-            <span className="text text--sm text--strong">Mail Server Transport Connection</span>
-            <span className="text text--xs text--muted">
-              Underlying mail server (Resend or SMTP) transport credentials are configured under Settings → Integrations.
-            </span>
-          </div>
-          <Link to="/settings/integrations" className="button button--ghost button--sm">
-            Manage in Integrations <ArrowRight size={14} />
-          </Link>
-        </div>
-      </Card>
-      <Senders />
+      <EmailRulesSection />
       <Templates />
       <OutboxDeliveryLogs />
     </div>
@@ -72,8 +60,7 @@ function Senders() {
                 <span className="text text--sm text--medium">
                   {s.fromName} &lt;{s.fromEmail}&gt; {s.isDefault ? <Badge tone="outline">Default</Badge> : null}
                 </span>
-                <span className="text text--xs text--muted">{s.provider === 'DEV_LOG' ? 'Development transport — writes to the local outbox, never delivers' : `Resend${s.hasCredential ? ' · company API key stored encrypted' : ' · platform key'}`}</span>
-                {s.verificationDetail ? <span className="text text--xs text--muted">{s.verificationDetail}</span> : null}
+               
               </div>
               <Badge tone={s.verification === 'VERIFIED' ? 'success' : s.verification === 'FAILED' ? 'danger' : 'warning'}>{s.verification.toLowerCase()}</Badge>
               {s.provider === 'RESEND' ? (
@@ -88,11 +75,6 @@ function Senders() {
           ))}
         </div>
       )}
-      {!senders.data?.some((s) => s.provider === 'RESEND' && s.verification === 'VERIFIED') ? (
-        <div className="mt-4">
-          <Notice>Connect your company’s Resend account and verify your domain to send real email. Until then, the development transport records messages without delivering them.</Notice>
-        </div>
-      ) : null}
       {adding ? <SenderForm onClose={() => setAdding(false)} /> : null}
     </Card>
   )

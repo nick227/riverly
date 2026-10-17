@@ -46,10 +46,14 @@ const TARGET_LABELS: Record<string, string> = {
   receivedAt: 'Lead date',
 }
 
-type TabKey = 'csv' | 'woocommerce' | 'hubspot' | 'zapier'
+export type ImportTabKey = 'csv' | 'woocommerce' | 'hubspot' | 'zapier'
 
-export function ImportDialog({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<TabKey>('csv')
+export function ImportDialog({ onClose, initialTab = 'csv' }: { onClose: () => void; initialTab?: ImportTabKey }) {
+  const [tab, setTab] = useState<ImportTabKey>(initialTab)
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab)
+  }, [initialTab])
 
   return (
     <Overlay open variant="wide" onRequestClose={onClose} title="Import Contacts">
@@ -656,7 +660,7 @@ function WooCommerceImportTab({ onClose }: { onClose: () => void }) {
         </div>
 
         {isSyncing ? (
-          <div className="stack gap-2.5 card card--subtle p-3" style={{ border: '1px solid var(--color-accent)' }}>
+          <div className="stack gap-2.5 card card--subtle p-3" style={{ border: 'var(--border-width) solid var(--color-accent)' }}>
             <div className="flex items-center justify-between">
               <span className="text text--xs text--strong flex items-center gap-2">
                 <Spinner /> Synchronizing WooCommerce Records...
@@ -672,7 +676,7 @@ function WooCommerceImportTab({ onClose }: { onClose: () => void }) {
                   ) : idx === currentStep ? (
                     <RefreshCw size={13} className="text--accent spin shrink-0" />
                   ) : (
-                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: '1px solid var(--color-border)', display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-full)', border: 'var(--border-width) solid var(--color-border)', display: 'inline-block', flexShrink: 0 }} />
                   )}
                   <span className={idx === currentStep ? 'text--strong' : idx > currentStep ? 'text--muted' : ''}>
                     {step}
@@ -967,7 +971,7 @@ function HubSpotImportTab({ onClose }: { onClose: () => void }) {
         </div>
 
         {isSyncing ? (
-          <div className="stack gap-2.5 card card--subtle p-3" style={{ border: '1px solid var(--color-accent)' }}>
+          <div className="stack gap-2.5 card card--subtle p-3" style={{ border: 'var(--border-width) solid var(--color-accent)' }}>
             <div className="flex items-center justify-between">
               <span className="text text--xs text--strong flex items-center gap-2">
                 <Spinner /> Synchronizing HubSpot Contacts...
@@ -983,7 +987,7 @@ function HubSpotImportTab({ onClose }: { onClose: () => void }) {
                   ) : idx === currentStep ? (
                     <RefreshCw size={13} className="text--accent spin shrink-0" />
                   ) : (
-                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: '1px solid var(--color-border)', display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-full)', border: 'var(--border-width) solid var(--color-border)', display: 'inline-block', flexShrink: 0 }} />
                   )}
                   <span className={idx === currentStep ? 'text--strong' : idx > currentStep ? 'text--muted' : ''}>
                     {step}
@@ -1109,7 +1113,7 @@ function ZapierImportTab({ onClose }: { onClose: () => void }) {
         <div className="stack gap-1.5">
           <label className="text text--xs text--strong">Your Inbound Zapier Webhook URL</label>
           <div className="flex items-center gap-2 flex-nowrap">
-            <Input readOnly value={webhookUrl} style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)' }} />
+            <Input readOnly value={webhookUrl} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }} />
             <Button variant="ghost" onClick={copyUrl} className="shrink-0">
               {copied ? (
                 <Check size={14} className="shrink-0 text--success" />
@@ -1135,7 +1139,7 @@ function ZapierImportTab({ onClose }: { onClose: () => void }) {
           </div>
           <Textarea
             rows={4}
-            style={{ fontFamily: 'monospace', fontSize: '11px' }}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}
             value={testPayload}
             onChange={(e) => setTestPayload(e.target.value)}
           />

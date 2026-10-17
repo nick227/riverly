@@ -66,7 +66,7 @@ export async function provisionOrganization(tx: Tx, organizationId: string, owne
         fromEmail: 'dev-outbox@riverly.local',
         verification: 'VERIFIED',
         verifiedAt: new Date(),
-        verificationDetail: 'Development transport — messages are written to the local outbox and never leave this machine.',
+        verificationDetail: 'Development mode',
         isDefault: true,
       },
     })

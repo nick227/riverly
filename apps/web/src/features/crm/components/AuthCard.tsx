@@ -229,7 +229,6 @@ export function AuthCard({ initialTab = 'signup', compact = false, onSuccess, cl
                 <button
                   type="button"
                   className="link font-semibold"
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                   onClick={() => handleTabSwitch('login')}
                 >
                   Sign in here
@@ -304,7 +303,6 @@ export function AuthCard({ initialTab = 'signup', compact = false, onSuccess, cl
                 <button
                   type="button"
                   className="link font-semibold"
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                   onClick={() => handleTabSwitch('signup')}
                 >
                   Create a workspace

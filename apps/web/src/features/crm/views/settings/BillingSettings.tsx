@@ -39,7 +39,7 @@ export function BillingSettings() {
         />
         <CardSection>
           <div className="stack gap-4">
-            <div className="row row--between items-center p-3" style={{ background: 'var(--color-surface-subtle)', borderRadius: '8px' }}>
+            <div className="row row--between items-center p-3" style={{ background: 'var(--color-surface-subtle)', borderRadius: 'var(--radius-md)' }}>
               <div>
                 <div className="row gap-2 items-center">
                   <h4 className="heading heading--4" style={{ margin: 0 }}>
@@ -85,14 +85,14 @@ export function BillingSettings() {
 
             {/* Payment Method / Stripe Details */}
             {paymentDetails ? (
-              <div className="p-3 border rounded-md" style={{ borderColor: 'var(--color-border)', borderRadius: '8px' }}>
+              <div className="p-3 border rounded-md" style={{ borderColor: 'var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                 <div className="row row--between items-center">
                   <div className="row gap-3 items-center">
                     <div
                       style={{
                         width: 40,
                         height: 40,
-                        borderRadius: 8,
+                        borderRadius: 'var(--radius-md)',
                         background: 'var(--color-surface-subtle)',
                         display: 'flex',
                         alignItems: 'center',

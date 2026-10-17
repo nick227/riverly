@@ -21,13 +21,12 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
   { path: 'company', label: 'Company', permission: 'settings.manage', Component: CompanySettings },
-  { path: 'billing', label: 'Billing & Plan', permission: 'settings.manage', Component: BillingSettings },
   { path: 'team', label: 'Team', permission: 'settings.manage', Component: TeamSettings },
   { path: 'workflow', label: 'Workflow', permission: 'settings.manage', Component: WorkflowSettings },
   { path: 'email', label: 'Email', permission: 'settings.manage', Component: EmailSettings },
   { path: 'integrations', label: 'Integrations', permission: 'settings.manage', Component: IntegrationsSettings },
   { path: 'reports', label: 'Reports', permission: 'reports.view', Component: ReportsSettings },
-  { path: 'diagnostics', label: 'Diagnostics', permission: 'diagnostics.view', Component: DiagnosticsSettings },
+  { path: 'billing', label: 'Billing', permission: 'settings.manage', Component: BillingSettings },
 ]
 
 /** Company configuration and reports. Managers see only the sections their role allows (Reports). */

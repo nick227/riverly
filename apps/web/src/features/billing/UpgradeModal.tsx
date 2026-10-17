@@ -62,11 +62,11 @@ const PREMIUM_FEATURES: PremiumFeature[] = [
   },
   {
     icon: <Video size={18} />,
-    title: 'Live roof inspections',
+    title: 'Online Forms',
     details: [
-      'Stream a walkthrough to the homeowner’s phone from a link, with no app to install.',
-      'Recordings are saved to the job’s files and Activity history.',
-      'Bring in outside inspectors and crews as participants without giving them a login.',
+      'Use our library of eye-catching forms: proposals, coupons, invoices, receipts, newsletters and more.',
+      'We can publish the form to a dedicated page on your website or Riverly.',
+      'Riverly will track everything that happens with the forms and notify you.',
     ],
   },
 ]
@@ -257,8 +257,7 @@ export function UpgradeModal({ open: propsOpen, onClose: propsOnClose, onSuccess
                     <ArrowRight size={16} />
                   </Button>
                   <p className="upgrade-fineprint">
-                    Paid securely through Stripe. 14-day money-back guarantee. Cancel any time from
-                    Settings.
+                    Paid securely through Stripe.
                   </p>
                 </div>
               </section>

@@ -42,7 +42,7 @@
   .text--truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .text--pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   .text--tabular { font-variant-numeric: tabular-nums; }
-  .heading { font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--color-text); }
+  .heading { font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--color-text); font-family: var(--heading-font); }
   .heading--1 { font-size: var(--text-2xl); font-weight: var(--weight-bold); }
   .heading--2 { font-size: var(--text-xl); font-weight: var(--weight-bold); }
   .heading--3 { font-size: var(--text-lg); }

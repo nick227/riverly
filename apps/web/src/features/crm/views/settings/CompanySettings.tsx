@@ -243,7 +243,7 @@ export function CompanySettings() {
         {/* Section 1: Personal Profile */}
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
-            <h3 className="heading heading--3">01 · Personal Profile</h3>
+            <h3 className="heading heading--3">01 · Profile</h3>
             <p className="text text--sm text--muted">
               Your name and role displayed on contacts, job stages, and customer timelines.
             </p>
@@ -288,10 +288,10 @@ export function CompanySettings() {
           </div>
         </div>
 
-        {/* Section 2: Company & Trade */}
+        {/* Section 2: Company */}
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
-            <h3 className="heading heading--3">02 · Company &amp; Trade</h3>
+            <h3 className="heading heading--3">02 · Company</h3>
             <p className="text text--sm text--muted">
               Your business trade focus, team operational scale, and workspace preferences.
             </p>
@@ -385,7 +385,7 @@ export function CompanySettings() {
           </div>
 
           {logoUrl ? (
-            <div className="mt-3 p-3 row gap-3 items-center" style={{ background: 'var(--color-surface-subtle)', borderRadius: '8px', border: '1px solid var(--color-border)', width: 'fit-content' }}>
+            <div className="mt-3 p-3 row gap-3 items-center" style={{ background: 'var(--color-surface-subtle)', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--color-border)', width: 'fit-content' }}>
               <img
                 src={logoUrl}
                 alt="Company logo preview"
@@ -402,7 +402,7 @@ export function CompanySettings() {
         {/* Section 3: Team Invites */}
         <div className="onboarding-panel">
           <div className="onboarding-panel__header">
-            <h3 className="heading heading--3">03 · Team Invites</h3>
+            <h3 className="heading heading--3">03 · Team</h3>
             <p className="text text--sm text--muted">
               Add your estimators, managers, and field crew members, or invite them anytime in Team Settings.
             </p>

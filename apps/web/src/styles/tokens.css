@@ -21,6 +21,15 @@
     --red-600: #c2410c;
     --red-50: #fff7ed;
 
+    /* Brand palette */
+    --brand-ink: #0d2b33;
+    --brand-river: #1f6f7a;
+    --brand-river-soft: #e6f2f3;
+    --brand-glow: rgb(31 111 122 / 0.12);
+    --brand-dark-bg: #090e11;
+    --brand-dark-surface: #111a1f;
+    --brand-dark-border: rgba(255, 255, 255, 0.08);
+
     /* Semantic colors */
     --color-bg: var(--white);
     --color-surface: var(--white);
@@ -53,6 +62,7 @@
     --tone-stage-bg: #e9f5f5;
     --color-danger: var(--red-600);
     --color-danger-bg: var(--red-50);
+    --color-danger-border: #fca5a5;
     --color-overlay: rgb(23 23 23 / 0.32);
 
     /* Component tokens */
@@ -61,6 +71,8 @@
     --button-secondary-bg: var(--color-surface);
     --button-secondary-border: var(--color-border-strong);
     --pipeline-current: #2563eb;
+    --pipeline-current-hover: #1d4ed8;
+    --pipeline-current-text: #ffffff;
     --pipeline-current-bg: #eff6ff;
     --pipeline-done: #16a34a;
     --pipeline-done-bg: #f0fdf4;
@@ -68,6 +80,7 @@
 
     /* Typography */
     --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     --text-xs: 0.75rem;
     --text-sm: 0.8125rem;
     --text-base: 0.9375rem;
@@ -75,6 +88,14 @@
     --text-lg: 1.25rem;
     --text-xl: 1.625rem;
     --text-2xl: 2rem;
+    --text-3xl: 2.5rem;
+    --text-4xl: 3rem;
+    --text-5xl: 3.5rem;
+    --text-6xl: 4rem;
+    --text-7xl: 5rem;
+    --text-8xl: 6rem;
+    --text-9xl: 8rem;
+    --text-10xl: 10rem;
     --text-figure: clamp(1.75rem, 3.4vw, 2.75rem);
     --text-display: clamp(2.75rem, 7.5vw, 6.5rem);
     --leading-tight: 1.25;
@@ -84,11 +105,15 @@
     --weight-semibold: 600;
     --weight-bold: 700;
     --tracking-tight: -0.011em;
+    --heading-font: Helvetica;
 
     /* Spacing */
     --space-1: 4px;
+    --space-1-5: 6px;
     --space-2: 8px;
+    --space-2-5: 10px;
     --space-3: 12px;
+    --space-3-5: 14px;
     --space-4: 16px;
     --space-5: 20px;
     --space-6: 24px;
@@ -99,13 +124,19 @@
     --space-24: 96px;
 
     /* Geometry */
+    --radius-xs: 4px;
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
     --radius-full: 999px;
     --border-width: 1px;
-    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.06);
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.04);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+    --shadow-md: 0 2px 6px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.04);
     --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.06);
+    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.14), 0 2px 8px rgb(0 0 0 / 0.06);
 
     /* Sizing */
     --control-height: 36px;
@@ -119,6 +150,7 @@
 
     /* Layout */
     --page-max-width: 1440px;
+    --page-max-width-narrow: 840px;
     --page-padding: var(--space-8);
     --section-gap: var(--space-8);
     --header-height: 64px;
@@ -146,6 +178,13 @@
 
   /* Dark theme: token overrides only — components never change. */
   :root[data-theme='dark'] {
+    --brand-ink: #e6f2f3;
+    --brand-river: #6cc3cc;
+    --brand-river-soft: #112a2d;
+    --brand-glow: rgb(108 195 204 / 0.14);
+    --brand-dark-bg: #05080a;
+    --brand-dark-surface: #0b1216;
+    --brand-dark-border: rgba(255, 255, 255, 0.1);
     --color-bg: #0f0f0f;
     --color-surface: #161616;
     --color-surface-subtle: #1c1c1c;
@@ -166,6 +205,7 @@
     --color-warning-bg: #2a2110;
     --color-danger: #fb923c;
     --color-danger-bg: #2b1810;
+    --color-danger-border: #7c2d12;
     --tone-call: #8fc4a2;
     --tone-call-bg: #15231a;
     --tone-email: #8db4ea;
@@ -178,12 +218,17 @@
     --tone-stage-bg: #112627;
     --color-overlay: rgb(0 0 0 / 0.6);
     --pipeline-current: #3b82f6;
+    --pipeline-current-hover: #2563eb;
+    --pipeline-current-text: #ffffff;
     --pipeline-current-bg: #172554;
     --pipeline-done: #22c55e;
     --pipeline-done-bg: #14532d;
     --pipeline-todo: #27272a;
-    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.6);
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.2);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.3), 0 1px 2px rgb(0 0 0 / 0.2);
+    --shadow-md: 0 2px 6px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.2);
     --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.5);
+    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
