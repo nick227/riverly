@@ -5,9 +5,14 @@ import { expect, test } from '@playwright/test'
 import { loginAs, USERS } from './helpers'
 
 test.describe('auth', () => {
-  test('login → contacts → sign out', async ({ page }) => {
+  test('guests get the front page, which leads to sign in', async ({ page }) => {
     await page.goto('/')
+    await expect(page.getByRole('heading', { level: 1, name: /Keep every roofing lead moving/ })).toBeVisible()
+    await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).click()
     await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('login → contacts → sign out', async ({ page }) => {
     await loginAs(page, USERS.member)
     await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible()
     await page.getByRole('button', { name: 'Account menu' }).click()
@@ -73,6 +78,21 @@ test.describe('roles', () => {
     await expect(page.getByRole('link', { name: 'Workflow' })).toHaveCount(0)
     await page.goto('/settings/workflow')
     await expect(page).toHaveURL(/\/settings\/reports/)
+  })
+
+  test('company home: logo, personal welcome and tasks, overview steps link to Contacts, documents open', async ({ page }) => {
+    await loginAs(page, USERS.member)
+    await page.getByRole('link', { name: 'Company home' }).click()
+    await expect(page.getByRole('img', { name: 'NV Custom Homes logo' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /Jake/ })).toBeVisible()
+    const steps = page.getByRole('region', { name: 'Company overview' })
+    await expect(steps.getByText('Job Completed', { exact: true })).toBeVisible()
+    await page.getByRole('link', { name: /Safety on the roof/ }).click()
+    await expect(page).toHaveURL(/\/docs\/safety/)
+    await expect(page.getByText('This is a sample document.')).toBeVisible()
+    await page.getByRole('link', { name: 'Company home' }).first().click()
+    await steps.getByRole('link', { name: /Inspection/ }).click()
+    await expect(page).toHaveURL(/\/contacts\?stage=inspection/)
   })
 
   test('members see the sales board but not Settings', async ({ page }) => {

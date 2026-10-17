@@ -443,7 +443,7 @@ export class OpportunityService {
   }
 }
 
-async function attentionFilter(organizationId: string, attention: Attention | undefined): Promise<Prisma.OpportunityWhereInput> {
+export async function attentionFilter(organizationId: string, attention: Attention | undefined): Promise<Prisma.OpportunityWhereInput> {
   const now = new Date()
   switch (attention) {
     case 'overdue':

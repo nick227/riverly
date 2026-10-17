@@ -88,6 +88,8 @@ model Organization {
   workflows     WorkflowVersion[]
   contacts      Contact[]
   opportunities Opportunity[]
+  integrations  Integration[]
+  provenances   ContactProvenance[]
 }
 
 model Membership {
@@ -211,6 +213,7 @@ model Contact {
   organization  Organization        @relation(fields: [organizationId], references: [id])
   opportunities Opportunity[]
   sourceLinks   ContactSourceLink[]
+  provenances   ContactProvenance[]
 
   @@unique([id, organizationId])
   @@index([organizationId, emailNormalized])
@@ -673,6 +676,7 @@ model ImportRun {
   columnMapping     Json
   rowsSeen          Int         @default(0)
   created           Int         @default(0)
+  updated           Int         @default(0)
   linked            Int         @default(0)
   duplicatesFlagged Int         @default(0)
   errors            Int         @default(0)
@@ -711,6 +715,64 @@ model LeadForm {
   updatedAt      DateTime @updatedAt
 
   @@index([organizationId])
+}
+
+// ───────────────────────────── Integrations ───────────────────────────────────
+
+enum IntegrationProvider {
+  WOOCOMMERCE
+  HUBSPOT
+  ZAPIER
+  EMAIL_SERVER
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+model Integration {
+  id                   String              @id @default(cuid())
+  organizationId       String
+  provider             IntegrationProvider
+  name                 String
+  status               IntegrationStatus   @default(DISCONNECTED)
+  config               Json?
+  credentialCiphertext String?             @db.Text
+  lastSyncedAt         DateTime?
+  lastTestedAt         DateTime?
+  errorMessage         String?             @db.Text
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provenances  ContactProvenance[]
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+}
+
+model ContactProvenance {
+  id             String              @id @default(cuid())
+  organizationId String
+  contactId      String
+  provider       IntegrationProvider
+  integrationId  String?
+  externalId     String
+  externalData   Json?
+  lastSyncedAt   DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId, organizationId], references: [id, organizationId], onDelete: Restrict, onUpdate: Restrict)
+  integration  Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, provider, externalId])
+  @@index([organizationId, contactId])
+  @@index([contactId])
+  @@index([integrationId])
 }
 
 // ───────────────────────────── Email ──────────────────────────────────────────

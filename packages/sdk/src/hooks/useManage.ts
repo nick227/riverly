@@ -35,3 +35,8 @@ export function useActivityReport(range: { from?: string; to?: string } = {}) {
 export function useWorkerRuns(enabled = true) {
   return useQuery({ queryKey: ['worker-runs'], enabled, queryFn: async () => (await unwrap(getApiClient().GET('/diagnostics/worker-runs'))).data })
 }
+
+/** Company home page: waiting work, all-time company totals and the viewer's own totals. */
+export function useCompanyHome() {
+  return useQuery({ queryKey: ['company-home'], queryFn: async () => (await unwrap(getApiClient().GET('/company/home'))).data })
+}

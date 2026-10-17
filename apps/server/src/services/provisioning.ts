@@ -4,12 +4,29 @@ import { config } from '../lib/config'
 
 type Tx = Prisma.TransactionClient
 
-const DEFAULT_RECOGNITION_TYPES = [
-  { key: 'thank_you', label: 'Thank you', emoji: '🙏' },
+export const DEFAULT_RECOGNITION_TYPES = [
+  // ── 5 Cheers (1-click immediate send) ──
+  { key: 'cheer_attaboy', label: 'Attaboy!', emoji: '👏' },
+  { key: 'cheer_thumbsup', label: 'Thumbs Up', emoji: '👍' },
+  { key: 'cheer_highfive', label: 'High Five', emoji: '🙌' },
+  { key: 'cheer_crushing_it', label: 'Crushing It', emoji: '🚀' },
+  { key: 'cheer_coffee', label: 'Coffee Cheer', emoji: '☕' },
+
+  // ── 8 Gifts (emoticon style gifts / tokens, optional note) ──
   { key: 'clutch', label: 'Clutch save', emoji: '🛟' },
-  { key: 'customer_love', label: 'Customer love', emoji: '💬' },
   { key: 'craftsmanship', label: 'Craftsmanship', emoji: '🔨' },
+  { key: 'customer_love', label: 'Customer love', emoji: '💬' },
   { key: 'team_player', label: 'Team player', emoji: '🤝' },
+  { key: 'gift_lightning', label: 'Lightning fast', emoji: '⚡' },
+  { key: 'gift_treat', label: 'Sweet treat', emoji: '🍩' },
+  { key: 'gift_star', label: 'Star contributor', emoji: '🌟' },
+  { key: 'gift_box', label: 'Special gift', emoji: '🎁' },
+
+  // ── 4 Awards (prestigious / milestone recognitions) ──
+  { key: 'award_mvp', label: 'MVP', emoji: '🏆' },
+  { key: 'award_gold_standard', label: 'Gold standard', emoji: '🥇' },
+  { key: 'award_milestone', label: 'Milestone master', emoji: '🎯' },
+  { key: 'award_legend', label: 'Peer legend', emoji: '👑' },
 ]
 
 /**

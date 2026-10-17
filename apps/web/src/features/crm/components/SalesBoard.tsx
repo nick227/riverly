@@ -68,7 +68,14 @@ function BoardBody({ board: b, since, view }: { board: Board; since: string; vie
           <Link to={`/jobs/${b.topSale.opportunityId}`} className="text text--sm text--medium text--truncate link">
             {b.topSale.contactName} · {b.topSale.title}
           </Link>
-          {b.topSale.owner ? <span className="text text--xs text--muted">Closed by {b.topSale.owner.displayName}</span> : null}
+          {b.topSale.owner ? (
+            <span className="text text--xs text--muted">
+              Closed by{' '}
+              <Link to={`/u/${b.topSale.owner.slug}`} className="link">
+                {b.topSale.owner.displayName}
+              </Link>
+            </span>
+          ) : null}
         </Card>
       ) : null}
 
@@ -79,7 +86,9 @@ function BoardBody({ board: b, since, view }: { board: Board; since: string; vie
             {b.leaders.map((l, i) => (
               <li key={l.user.id} className={cx('crm-board__leader', i === 0 && 'is-first')}>
                 <span className="crm-board__rank">{i + 1}</span>
-                <Avatar name={l.user.displayName} src={l.user.avatarUrl} size="sm" />
+                <Link to={`/u/${l.user.slug}`} aria-label={l.user.displayName}>
+                  <Avatar name={l.user.displayName} src={l.user.avatarUrl} size="sm" />
+                </Link>
                 <Link to={`/u/${l.user.slug}`} className="stack gap-1 grow" style={{ minWidth: 0 }}>
                   <span className="text text--sm text--medium text--truncate">{l.user.displayName}</span>
                   <span className="text text--xs text--muted">
@@ -94,7 +103,6 @@ function BoardBody({ board: b, since, view }: { board: Board; since: string; vie
           <EmptyState compact title={`No calls or sales yet. First ${view.terms.owner.toLowerCase()} on the board leads.`} />
         )}
       </Card>
-      <span className="text text--xs text--muted">Contract values are entered by the team and not verified. Updates every minute.</span>
     </>
   )
 }

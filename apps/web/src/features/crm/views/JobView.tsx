@@ -6,6 +6,7 @@ import { Badge } from '@/components/patterns/Badge'
 import { toast } from '@/components/patterns/Toast'
 import { ErrorState, PageState, Skeleton } from '@/components/patterns/States'
 import { dateOnly } from '@/lib/format'
+import { useEntityTitle } from '@/lib/pageTitle'
 import { useSession } from '@/lib/session'
 import { ActivityRiver } from '../components/ActivityRiver'
 import { JobComposer } from '../components/Composers'
@@ -41,6 +42,25 @@ export default function JobView() {
   const selected = view?.stage(selectedStageId) ?? view?.stage(data?.stageId)
 
   const stageMeta = useMemo(() => stageReachedDates(data?.transitions ?? [], org?.timezone), [data?.transitions, org?.timezone])
+
+  const customerName = data?.contact?.name
+  const stageLabel = selected?.label
+  const propertyAddress = data?.propertyAddress
+
+  useEntityTitle(
+    {
+      type: 'job',
+      name: customerName,
+      context: stageLabel
+        ? `${stageLabel} Stage${propertyAddress ? ` (${propertyAddress})` : ''}`
+        : null,
+      description:
+        customerName && stageLabel
+          ? `Roofing project details and stage workflow for ${customerName} in stage ${stageLabel}${propertyAddress ? ` at ${propertyAddress}` : ''}. Track milestones, customer communications, and inspection records in Riverly CRM.`
+          : null,
+    },
+    [customerName, stageLabel, propertyAddress],
+  )
 
   if (job.isLoading || !view) return <JobSkeleton />
   if (job.error || !data) return <div className="crm-page"><ErrorState error={job.error} onRetry={() => void job.refetch()} /></div>

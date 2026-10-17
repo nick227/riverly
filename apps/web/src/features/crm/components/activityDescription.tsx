@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react'
 import type { ActivityItem as Item } from '@project/sdk'
-import { useRetryMessage } from '@project/sdk'
+import { useMembers, useRetryMessage } from '@project/sdk'
 import { Button } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
 import { toast } from '@/components/patterns/Toast'
@@ -45,7 +45,13 @@ export function describeActivity(item: Item, { view, showSubject }: DescribeCtx)
     view,
     showSubject,
     p: (item.payload ?? {}) as Payload,
-    who: <strong>{item.actor ? item.actor.displayName : item.actorLabel ?? 'Riverly'}</strong>,
+    who: item.actor?.slug ? (
+      <Link to={`/u/${item.actor.slug}`} className="link text--strong">
+        {item.actor.displayName}
+      </Link>
+    ) : (
+      <strong>{item.actor ? item.actor.displayName : item.actorLabel ?? 'Riverly'}</strong>
+    ),
     job: showSubject && item.opportunity ? <> on <strong>{item.opportunity.label}</strong></> : null,
   }
   const { p, who, job } = parts
@@ -86,7 +92,15 @@ export function describeActivity(item: Item, { view, showSubject }: DescribeCtx)
     case 'appointment.updated':
       return { icon: <CalendarClock />, variant: 'compact', line: appointmentLine(parts) }
     case 'participant.added':
-      return { icon: <Users />, variant: 'compact', line: <>{who} added {p.name ?? 'a team member'} as {p.roleKey}{job}</> }
+      return {
+        icon: <Users />,
+        variant: 'compact',
+        line: (
+          <>
+            {who} added {p.memberUserId ? <MemberName id={p.memberUserId} /> : (p.name ?? 'a team member')} as {p.roleKey}{job}
+          </>
+        ),
+      }
     case 'participant.removed':
       return { icon: <Users />, variant: 'compact', line: <>{who} removed a {p.roleKey}{job}</> }
     case 'finance.reference_added':
@@ -230,12 +244,32 @@ function formatChange(view: WorkflowView, fieldId: string, to: unknown) {
 
 function OwnerName({ id }: { id: string }) {
   const { me } = useSession()
-  return <strong>{id === me?.id ? 'you' : <MemberName id={id} />}</strong>
+  return (
+    <strong>
+      {id === me?.id ? (
+        me?.slug ? (
+          <Link to={`/u/${me.slug}`} className="link">
+            you
+          </Link>
+        ) : (
+          'you'
+        )
+      ) : (
+        <MemberName id={id} />
+      )}
+    </strong>
+  )
 }
 
 function MemberName({ id }: { id: string }) {
-  const name = useMemberName()
-  return <>{name(id) ?? 'a teammate'}</>
+  const members = useMembers()
+  const member = members.data?.find((m) => m.userId === id)
+  if (!member) return <>a teammate</>
+  return (
+    <Link to={`/u/${member.slug}`} className="link text--strong">
+      {member.displayName}
+    </Link>
+  )
 }
 
 /** Queued → sent → delivered/failed shown on one item; raw provider events stay on the message. */

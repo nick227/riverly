@@ -8,7 +8,7 @@ import { currentWorkflow, firstStageId } from '../lib/workflow'
 // Roofing template IDs (stable across label edits): a sale is a signed contract, a call is a
 // contact attempt logged with the phone method.
 const SALE_STAGE_ID = 'contract'
-const CALL_METHOD_ID = 'phone'
+export const CALL_METHOD_ID = 'phone'
 const LEADERS = 5
 
 type Sale = { opportunityId: string; title: string; contactName: string; userId: string | null; valueCents: number | null }
@@ -51,7 +51,7 @@ export class BoardService {
 }
 
 /** The contract stage and every active stage after it (a job can skip straight past it). */
-function saleStages(def: WorkflowDefinition) {
+export function saleStages(def: WorkflowDefinition) {
   const contract = def.stages.find((s) => s.id === SALE_STAGE_ID)
   if (!contract) return []
   return def.stages.filter((s) => s.order >= contract.order).map((s) => s.id)

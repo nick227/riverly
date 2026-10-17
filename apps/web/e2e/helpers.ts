@@ -13,5 +13,7 @@ export async function loginAs(page: Page, email: string) {
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/contacts/)
+  // Signing in lands on the company home page; most tests start from Contacts.
+  await expect(page.getByRole('region', { name: 'Your tasks' })).toBeVisible()
+  await page.goto('/contacts')
 }

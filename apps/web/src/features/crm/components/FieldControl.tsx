@@ -1,5 +1,5 @@
 import type { FieldDef, OpportunityDetail } from '@project/sdk'
-import { useSetOpportunityField, useUpdateOpportunity } from '@project/sdk'
+import { useMembers, useSetOpportunityField, useUpdateOpportunity } from '@project/sdk'
 import { Input, Select, Textarea, Checkbox } from '@/components/primitives/Controls'
 import { EditableField } from '@/components/patterns/EditableField'
 import { Field } from '@/components/patterns/Field'
@@ -60,6 +60,7 @@ export function FieldControl({ field, ctx, inline }: { field: FieldDef; ctx: Con
 function ValueField({ field, ctx, inline }: { field: FieldDef; ctx: ControlContext; inline?: boolean }) {
   const update = useUpdateOpportunity(ctx.job.id)
   const setField = useSetOpportunityField(ctx.job.id)
+  const members = useMembers()
   const memberName = useMemberName()
   const nativeKey = field.binding ? NATIVE_KEY[field.binding] : undefined
   const raw: unknown = nativeKey
@@ -86,6 +87,17 @@ function ValueField({ field, ctx, inline }: { field: FieldDef; ctx: ControlConte
   const display = displayValue(field, raw, ctx, memberName)
   const editable = field.editable !== false && !field.retired
 
+  const memberDisplay = (() => {
+    if (field.binding === 'opportunity.ownerId' && ctx.job.owner) {
+      return <Identity name={ctx.job.owner.displayName} src={ctx.job.owner.avatarUrl} size="sm" slug={ctx.job.owner.slug} />
+    }
+    if (field.type === 'member' && typeof raw === 'string') {
+      const mem = members.data?.find((m) => m.userId === raw)
+      if (mem) return <Identity name={mem.displayName} src={mem.avatarUrl} size="sm" slug={mem.slug} />
+    }
+    return display
+  })()
+
   return (
     <Field label={field.label} inline={inline}>
       {(id) =>
@@ -93,7 +105,7 @@ function ValueField({ field, ctx, inline }: { field: FieldDef; ctx: ControlConte
           <EditableField
             label={field.label}
             value={(raw as string | null) ?? null}
-            display={field.binding === 'opportunity.ownerId' && ctx.job.owner ? <Identity name={ctx.job.owner.displayName} src={ctx.job.owner.avatarUrl} size="sm" /> : display}
+            display={memberDisplay}
             emptyLabel="Unassigned"
             disabled={!editable}
             onSave={save}

@@ -1175,6 +1175,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/company/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the company home page numbers
+         * @description Work waiting right now (same rules as the Contacts "Needs attention" filters), all-time company totals since the company joined, and the signed-in member's own all-time totals. Visible to every member.
+         */
+        get: operations["getCompanyHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/pipeline": {
         parameters: {
             query?: never;
@@ -1220,6 +1240,93 @@ export interface paths {
         get: operations["listWorkerRuns"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all integrations for the company */
+        get: operations["listIntegrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get integration details */
+        get: operations["getIntegration"];
+        /** Save integration configuration and credentials */
+        put: operations["updateIntegration"];
+        post?: never;
+        /** Disconnect integration and wipe stored credentials */
+        delete: operations["disconnectIntegration"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{provider}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test integration connection */
+        post: operations["testIntegration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{provider}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch and ingest records from integration with update/upsert */
+        post: operations["syncIntegration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/zapier/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inbound webhook to receive leads from Zapier */
+        post: operations["handleZapierWebhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1874,6 +1981,7 @@ export interface components {
             state: "RUNNING" | "SUCCEEDED" | "PARTIALLY_COMPLETED" | "FAILED";
             rowsSeen: number;
             created: number;
+            updated: number;
             linked: number;
             duplicatesFlagged: number;
             errors: number;
@@ -1881,6 +1989,78 @@ export interface components {
             startedAt: string;
             /** Format: date-time */
             finishedAt: string | null;
+            issues: {
+                rowNumber: number;
+                message: string;
+            }[];
+        };
+        /** @enum {string} */
+        IntegrationProvider: "WOOCOMMERCE" | "HUBSPOT" | "ZAPIER" | "EMAIL_SERVER";
+        /** @enum {string} */
+        IntegrationStatus: "CONNECTED" | "DISCONNECTED" | "ERROR";
+        Integration: {
+            id: string;
+            provider: components["schemas"]["IntegrationProvider"];
+            name: string;
+            status: components["schemas"]["IntegrationStatus"];
+            config?: {
+                [key: string]: unknown;
+            } | null;
+            hasCredentials?: boolean;
+            /** Format: date-time */
+            lastSyncedAt?: string | null;
+            /** Format: date-time */
+            lastTestedAt?: string | null;
+            errorMessage?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateIntegrationInput: {
+            name: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            credentials?: string;
+        };
+        TestIntegrationInput: {
+            config?: {
+                [key: string]: unknown;
+            };
+            credentials?: string;
+        };
+        TestIntegrationResult: {
+            success: boolean;
+            message: string;
+            details?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        SyncIntegrationInput: {
+            /** @default true */
+            updateExisting: boolean;
+            /** @default false */
+            createJobs: boolean;
+            defaultJobTitle?: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            credentials?: string;
+        };
+        SyncResult: {
+            runId: string;
+            provider: components["schemas"]["IntegrationProvider"];
+            sourceName: string;
+            /** @enum {string} */
+            state: "RUNNING" | "SUCCEEDED" | "PARTIALLY_COMPLETED" | "FAILED";
+            rowsSeen: number;
+            created: number;
+            updated: number;
+            linked: number;
+            duplicatesFlagged: number;
+            skipped: number;
+            errors: number;
             issues: {
                 rowNumber: number;
                 message: string;
@@ -2067,6 +2247,8 @@ export interface components {
             key: string;
             label: string;
             emoji: string;
+            /** @enum {string} */
+            category?: "cheer" | "gift" | "award";
         };
         Recognition: {
             id: string;
@@ -2163,6 +2345,57 @@ export interface components {
                 salesValueCents: number;
                 calls: number;
             }[];
+        };
+        CompanyHome: {
+            /** @description The signed-in member's own to-do list, most urgent first (max 12): follow-ups due by the end of today (company timezone), new leads they own that nobody has contacted, scheduled visits in the next 7 days on their jobs or assigned to them, and their jobs with no activity for 7 days. */
+            tasks: components["schemas"]["HomeTask"][];
+            /**
+             * Format: date-time
+             * @description When the company joined Riverly.
+             */
+            since: string;
+            /** @description Open or won jobs in each active stage right now, in workflow order. */
+            stages: {
+                stageId: string;
+                count: number;
+            }[];
+            /** @description Open or won jobs needing action now; matches the Contacts attention filters. */
+            waiting: {
+                notContacted: number;
+                overdueFollowUps: number;
+                upcomingAppointments: number;
+                quiet: number;
+            };
+            /** @description Company totals, plus homeowners on file and leads received. */
+            company: components["schemas"]["WorkTotals"] & {
+                contacts: number;
+                leads: number;
+            };
+            /** @description The same totals credited to the signed-in member, plus jobs they own now. */
+            you: components["schemas"]["WorkTotals"] & {
+                openJobs: number;
+            };
+        };
+        HomeTask: {
+            /** @enum {string} */
+            kind: "follow_up" | "first_call" | "visit" | "quiet";
+            opportunityId: string;
+            contactName: string;
+            title: string;
+            /**
+             * Format: date-time
+             * @description follow_up = when it was due; first_call = lead received; visit = start time; quiet = last activity.
+             */
+            at: string;
+        };
+        /** @description All-time totals. calls = contact attempts logged with the phone method (by whoever logged them). inspectionsBooked and reviewsRequested = created by. sales = jobs ever moved forward into Contract Signed or later; salesValueCents sums their manually entered contract values (unverified, not cash collected). completed = jobs ever moved into the final stage. Sales and completed jobs are credited to the job owner. */
+        WorkTotals: {
+            calls: number;
+            inspectionsBooked: number;
+            sales: number;
+            salesValueCents: number;
+            completed: number;
+            reviewsRequested: number;
         };
         CountRow: {
             key: string | null;
@@ -4479,6 +4712,30 @@ export interface operations {
             403: components["responses"]["Error"];
         };
     };
+    getCompanyHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Company home numbers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CompanyHome"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
     getPipelineReport: {
         parameters: {
             query?: {
@@ -4555,6 +4812,210 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
+        };
+    };
+    listIntegrations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of integrations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Integration"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    getIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Integration details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Integration"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    updateIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateIntegrationInput"];
+            };
+        };
+        responses: {
+            /** @description Updated integration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Integration"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    disconnectIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Integration"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    testIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TestIntegrationInput"];
+            };
+        };
+        responses: {
+            /** @description Test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TestIntegrationResult"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    syncIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncIntegrationInput"];
+            };
+        };
+        responses: {
+            /** @description Sync completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncResult"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    handleZapierWebhook: {
+        parameters: {
+            query?: {
+                token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Ingestion result */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            received: boolean;
+                            status?: string;
+                            contactId?: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
 }

@@ -1,4 +1,5 @@
 import { PageState } from '@/components/patterns/States'
+import { usePageTitle } from '@/lib/pageTitle'
 import { useSession } from '@/lib/session'
 import { ActivityRiver } from '../components/ActivityRiver'
 import { PostComposer } from '../components/Composers'
@@ -12,6 +13,13 @@ import { useWorkflowView } from '../config/workflow'
 export default function ActivityView() {
   const { view } = useWorkflowView()
   const { org } = useSession()
+
+  usePageTitle({
+    pageName: 'Activity River',
+    context: 'Team Feed',
+    description: 'Real-time river of customer interactions, job stage movements, team posts, and recognition in Riverly CRM.',
+  })
+
   if (!view) return <PageState />
   return (
     <main className="crm-page">

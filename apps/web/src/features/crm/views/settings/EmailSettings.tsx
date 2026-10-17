@@ -1,7 +1,17 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, Inbox, Plus, RotateCw } from 'lucide-react'
 import type { EmailTemplate } from '@project/sdk'
-import { useCreateSender, useDeleteSender, useEmailTemplates, useSenders, useUpdateEmailTemplate, useVerifySender } from '@project/sdk'
+import {
+  useCreateSender,
+  useDeleteSender,
+  useEmailTemplates,
+  useMessages,
+  useRetryMessage,
+  useSenders,
+  useUpdateEmailTemplate,
+  useVerifySender,
+} from '@project/sdk'
 import { KNOWN_TOKENS } from '@project/shared/email'
 import { Button, Checkbox, Input, Select, Textarea } from '@/components/primitives/Controls'
 import { Badge } from '@/components/patterns/Badge'
@@ -16,8 +26,22 @@ import { useWorkflowView } from '../../config/workflow'
 export function EmailSettings() {
   return (
     <div className="stack gap-6">
+      <Card style={{ background: 'var(--color-surface-subtle)', borderLeft: '4px solid var(--color-accent)' }}>
+        <div className="flex items-center justify-between gap-4">
+          <div className="stack gap-1">
+            <span className="text text--sm text--strong">Mail Server Transport Connection</span>
+            <span className="text text--xs text--muted">
+              Underlying mail server (Resend or SMTP) transport credentials are configured under Settings → Integrations.
+            </span>
+          </div>
+          <Link to="/settings/integrations" className="button button--ghost button--sm">
+            Manage in Integrations <ArrowRight size={14} />
+          </Link>
+        </div>
+      </Card>
       <Senders />
       <Templates />
+      <OutboxDeliveryLogs />
     </div>
   )
 }
@@ -126,9 +150,6 @@ function Templates() {
   return (
     <Card>
       <CardHeader title="Templates" />
-      <p className="text text--sm text--muted" style={{ marginBottom: 'var(--space-4)' }}>
-        Suggested on stages, always sent deliberately by a person. Edits here change future emails only.
-      </p>
       <div className="list">
         {(templates.data ?? []).map((t) => (
           <div key={t.id} className="list__row">
@@ -183,3 +204,98 @@ function TemplateForm({ template, onClose }: { template: EmailTemplate; onClose:
     </Overlay>
   )
 }
+
+function OutboxDeliveryLogs() {
+  const messages = useMessages({ limit: 50 })
+  const retry = useRetryMessage()
+
+  return (
+    <Card>
+      <CardHeader
+        title="Email Logs"
+        actions={
+          <span className="text text--xs text--muted">
+            {messages.data?.length ?? 0} recent messages
+          </span>
+        }
+      />
+      {messages.isLoading ? (
+        <SkeletonList rows={3} />
+      ) : !messages.data?.length ? (
+        <div className="empty">
+          <Inbox aria-hidden />
+          <span>No outbound messages logged yet</span>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Recipient</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Provider</th>
+                <th>Sent</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {messages.data.map((m) => {
+                const tone =
+                  m.status === 'DELIVERED'
+                    ? 'success'
+                    : m.status === 'SENT'
+                      ? 'accent'
+                      : m.status === 'FAILED' || m.status === 'BOUNCED'
+                        ? 'danger'
+                        : 'warning'
+                return (
+                  <tr key={m.id}>
+                    <td>
+                      <div className="stack gap-1">
+                        <span className="text text--sm text--medium">{m.toName || m.toEmail}</span>
+                        {m.toName ? <span className="text text--xs text--muted">{m.toEmail}</span> : null}
+                      </div>
+                    </td>
+                    <td className="text--truncate" style={{ maxWidth: 220 }}>
+                      {m.subject}
+                    </td>
+                    <td>
+                      <Badge tone={tone}>{m.status.toLowerCase()}</Badge>
+                    </td>
+                    <td>
+                      <span className="text text--xs text--muted">{m.provider}</span>
+                    </td>
+                    <td>
+                      <span className="text text--xs text--muted">{relative(m.queuedAt)}</span>
+                    </td>
+                    <td>
+                      {m.status === 'FAILED' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={retry.isPending}
+                          onClick={() =>
+                            retry.mutate(m.id, {
+                              onSuccess: () => toast.success('Message re-queued'),
+                              onError: (e) => toast.error(e),
+                            })
+                          }
+                        >
+                          <RotateCw size={12} aria-hidden /> Retry
+                        </Button>
+                      ) : (
+                        <span className="text text--xs text--muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  )
+}
+

@@ -7,7 +7,7 @@ import { ToastRegion } from './components/patterns/Toast'
 import { App } from './App'
 import './styles/index.css'
 
-createApiClient({ baseUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:3001' })
+createApiClient({ baseUrl: import.meta.env.VITE_API_URL ?? '/api' })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

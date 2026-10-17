@@ -7,10 +7,17 @@ import { Card } from '@/components/patterns/Card'
 import { EmptyState, ErrorState, SkeletonList } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
 import { dateTime } from '@/lib/format'
+import { usePageTitle } from '@/lib/pageTitle'
 
 /** Human decisions for possible duplicates. The original submission is always preserved. */
 export default function ReviewView() {
   const queue = useReviewQueue()
+
+  usePageTitle({
+    pageName: 'Review Matches',
+    context: 'Lead Intake Queue',
+    description: 'Review potential duplicate customer leads and resolve matches before processing in Riverly CRM.',
+  })
   return (
     <main className="crm-page crm-page--narrow">
       <div className="crm-page__header">

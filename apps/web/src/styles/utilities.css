@@ -1,7 +1,53 @@
 @layer utilities {
   .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .w-full { width: 100%; }
+
+  /* Flexbox */
+  .flex { display: flex; }
+  .flex-col { flex-direction: column; }
+  .flex-1 { flex: 1 1 0%; }
+  .shrink-0 { flex-shrink: 0; }
+  .items-center { align-items: center; }
+  .justify-end { justify-content: flex-end; }
+  .justify-between { justify-content: space-between; }
+  .flex-nowrap { flex-wrap: nowrap; }
+  .flex-wrap { flex-wrap: wrap; }
+
+  /* Geometry & Overflow */
+  .min-w-0 { min-width: 0; }
+  .min-h-0 { min-height: 0; }
+  .overflow-y-auto { overflow-y: auto; }
+  .whitespace-nowrap { white-space: nowrap; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Spacing: Gaps */
+  .gap-1 { gap: var(--space-1); }
+  .gap-1\.5 { gap: 6px; }
+  .gap-2 { gap: var(--space-2); }
+  .gap-2\.5 { gap: 10px; }
+  .gap-3 { gap: var(--space-3); }
+  .gap-3\.5 { gap: 14px; }
+  .gap-4 { gap: var(--space-4); }
+  .gap-6 { gap: var(--space-6); }
+
+  /* Margins */
+  .mt-auto { margin-top: auto; }
   .mt-2 { margin-top: var(--space-2); }
   .mt-4 { margin-top: var(--space-4); }
   .mt-6 { margin-top: var(--space-6); }
-  .w-full { width: 100%; }
+  .mb-2 { margin-bottom: var(--space-2); }
+  .mr-1 { margin-right: var(--space-1); }
+
+  /* Paddings */
+  .p-3 { padding: var(--space-3); }
+  .pt-1 { padding-top: var(--space-1); }
+  .pt-3 { padding-top: var(--space-3); }
+  .pt-4 { padding-top: var(--space-4); }
+  .pb-2\.5 { padding-bottom: 10px; }
+  .pb-3 { padding-bottom: var(--space-3); }
+  .pr-1 { padding-right: var(--space-1); }
+
+  /* Borders */
+  .border-t { border-top: var(--border-width) solid var(--color-border); }
+  .border-b { border-bottom: var(--border-width) solid var(--color-border); }
 }

@@ -117,6 +117,13 @@ export async function recognitionsOut(rows: (Recognition & { type: RecognitionTy
   )
 }
 
-export function recognitionTypeOut(t: RecognitionType) {
-  return { id: t.id, key: t.key, label: t.label, emoji: t.emoji }
+export function getRecognitionCategory(key: string): 'cheer' | 'gift' | 'award' {
+  if (key.startsWith('cheer') || key === 'thank_you') return 'cheer'
+  if (key.startsWith('award')) return 'award'
+  return 'gift'
 }
+
+export function recognitionTypeOut(t: RecognitionType) {
+  return { id: t.id, key: t.key, label: t.label, emoji: t.emoji, category: getRecognitionCategory(t.key) }
+}
+

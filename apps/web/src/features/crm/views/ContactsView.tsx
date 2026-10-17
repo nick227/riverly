@@ -13,6 +13,7 @@ import { Segmented } from '@/components/patterns/Segmented'
 import { EmptyState, ErrorState, Notice, SkeletonList } from '@/components/patterns/States'
 import { toast } from '@/components/patterns/Toast'
 import { dateTime, fromLocalInput, relative } from '@/lib/format'
+import { usePageTitle } from '@/lib/pageTitle'
 import { useSession } from '@/lib/session'
 import { useDebounce } from '@/lib/useDebounce'
 import { ImportDialog } from '../components/ImportDialog'
@@ -49,6 +50,19 @@ export default function ContactsView() {
   const status = params.get('status') ?? 'ACTIVE'
   const sort = (params.get('sort') as Sort) || 'recent'
   const attention = (params.get('attention') as Attention) || ''
+
+  const activeAttention = ATTENTION.find((a) => a.value === attention)?.label
+  const activeStage = view?.stage(stageId)?.label
+  const filterContext = activeAttention || (activeStage ? `${activeStage} Stage` : null)
+
+  usePageTitle(
+    {
+      pageName: 'Contacts & Pipeline',
+      context: filterContext,
+      description: 'Track leads, follow-ups, inspections, and completed roofing jobs across your pipeline in Riverly CRM.',
+    },
+    [filterContext],
+  )
 
   useEffect(() => setQ(params.get('q') ?? ''), [params])
   const set = (key: string, value: string) => {

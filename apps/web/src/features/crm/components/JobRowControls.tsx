@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { OpportunityStatus, OpportunitySummary } from '@project/sdk'
 import { useMembers, useSetOpportunityStatus, useUpdateOpportunity } from '@project/sdk'
 import { Button, Select, Textarea } from '@/components/primitives/Controls'
+import { Avatar } from '@/components/patterns/Avatar'
 import { Field } from '@/components/patterns/Field'
 import { Overlay } from '@/components/patterns/Overlay'
 import { toast } from '@/components/patterns/Toast'
@@ -30,23 +32,49 @@ export function OwnerSelect({ job }: { job: OpportunitySummary }) {
         ? [{ value: me.id, label: 'Assign to me' }]
         : []
   const locked = !manager && !!job.owner
+  if (locked && job.owner) {
+    return (
+      <div className="row items-center gap-1.5" style={{ minWidth: 0 }}>
+        {job.owner.slug ? (
+          <Link to={`/u/${job.owner.slug}`} title={`View ${job.owner.displayName}'s profile`} className="row items-center shrink-0">
+            <Avatar name={job.owner.displayName} src={job.owner.avatarUrl} size="sm" />
+          </Link>
+        ) : (
+          <Avatar name={job.owner.displayName} src={job.owner.avatarUrl} size="sm" />
+        )}
+        {job.owner.slug ? (
+          <Link to={`/u/${job.owner.slug}`} className="link text--sm text--strong text--truncate" title={`View ${job.owner.displayName}'s profile`}>
+            {job.owner.displayName}
+          </Link>
+        ) : (
+          <span className="text text--sm text--truncate">{job.owner.displayName}</span>
+        )}
+      </div>
+    )
+  }
   return (
-    <Select
-      size_="sm"
-      className={cx('crm-job-row__select', !job.owner && 'is-empty', locked && 'is-locked')}
-      aria-label={`Assigned to for ${job.contactName}`}
-      title={locked ? 'Only managers can reassign jobs' : undefined}
-      value={job.owner?.id ?? ''}
-      disabled={locked || update.isPending}
-      placeholder="Unassigned"
-      options={options}
-      onChange={(e) =>
-        update.mutate(
-          { ownerId: e.target.value || null },
-          { onSuccess: (j) => toast.success(j.owner ? `Assigned to ${j.owner.displayName}` : 'Unassigned'), onError: (err) => toast.error(err) },
-        )
-      }
-    />
+    <div className="row items-center gap-1.5" style={{ minWidth: 0, width: '100%' }}>
+      {job.owner?.slug ? (
+        <Link to={`/u/${job.owner.slug}`} title={`View ${job.owner.displayName}'s profile`} className="row items-center shrink-0">
+          <Avatar name={job.owner.displayName} src={job.owner.avatarUrl} size="sm" />
+        </Link>
+      ) : null}
+      <Select
+        size_="sm"
+        className={cx('crm-job-row__select', !job.owner && 'is-empty')}
+        aria-label={`Assigned to for ${job.contactName}`}
+        value={job.owner?.id ?? ''}
+        disabled={update.isPending}
+        placeholder="Unassigned"
+        options={options}
+        onChange={(e) =>
+          update.mutate(
+            { ownerId: e.target.value || null },
+            { onSuccess: (j) => toast.success(j.owner ? `Assigned to ${j.owner.displayName}` : 'Unassigned'), onError: (err) => toast.error(err) },
+          )
+        }
+      />
+    </div>
   )
 }
 

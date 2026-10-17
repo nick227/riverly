@@ -5,6 +5,7 @@ import { Button } from '@/components/primitives/Controls'
 import { Card } from '@/components/patterns/Card'
 import { EmptyState, ErrorState, PageState } from '@/components/patterns/States'
 import { dateOnly } from '@/lib/format'
+import { useEntityTitle } from '@/lib/pageTitle'
 import { NewJobOverlay } from '../components/ContactCard'
 import { useWorkflowView } from '../config/workflow'
 
@@ -16,6 +17,19 @@ export default function ContactView() {
   const { view } = useWorkflowView()
   const navigate = useNavigate()
   const addJob = params.get('addJob') === '1'
+
+  const contactName = contact.data?.name
+  useEntityTitle(
+    {
+      type: 'contact',
+      name: contactName,
+      context: 'Customer Record',
+      description: contactName
+        ? `Customer contact record for ${contactName}. View contact details, opportunities, and history in Riverly CRM.`
+        : null,
+    },
+    [contactName],
+  )
 
   if (contact.isLoading || !view) return <PageState />
   if (contact.error || !contact.data) return <div className="crm-page"><ErrorState error={contact.error} /></div>

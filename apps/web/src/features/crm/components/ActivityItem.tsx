@@ -36,9 +36,25 @@ export function ActivityItem({ item, view, showSubject = true, timezone }: { ite
 
   return (
     <article className={cx('activity-item', r.variant === 'rich' && 'activity-item--rich', r.variant === 'attention' && 'activity-item--attention')}>
-      {item.actor && item.category === 'TEAM' ? <Avatar name={item.actor.displayName} src={item.actor.avatarUrl} size="sm" /> : <span className="activity-item__icon">{r.icon}</span>}
+      {item.actor && item.category === 'TEAM' ? (
+        item.actor.slug ? (
+          <Link to={`/u/${item.actor.slug}`} aria-label={item.actor.displayName}>
+            <Avatar name={item.actor.displayName} src={item.actor.avatarUrl} size="sm" />
+          </Link>
+        ) : (
+          <Avatar name={item.actor.displayName} src={item.actor.avatarUrl} size="sm" />
+        )
+      ) : (
+        <span className="activity-item__icon">{r.icon}</span>
+      )}
       <div className="activity-item__body">
-        <p className="activity-item__line">{r.line}</p>
+        <div className="row row--between">
+          <p className="activity-item__line">{r.line}</p>
+            <Button size="sm" variant="ghost" onClick={() => setCorrecting(true)}>
+              <Pencil aria-hidden />
+            </Button>
+
+        </div>
         {r.content}
         {item.note && !r.hideNote ? <p className="activity-item__note">{item.note}</p> : null}
         {item.attachments.length ? <AttachmentGrid items={item.attachments} limit={6} /> : null}
@@ -50,13 +66,6 @@ export function ActivityItem({ item, view, showSubject = true, timezone }: { ite
               <MessageCircle size={13} aria-hidden /> {item.commentCount || 'Comment'}
             </button>
             {item.post && !item.post.deleted && canManage ? <DeletePost postId={item.post.id} /> : null}
-          </div>
-        ) : null}
-        {correctable && !correcting ? (
-          <div>
-            <Button size="sm" variant="ghost" onClick={() => setCorrecting(true)}>
-              <Pencil aria-hidden /> Correct
-            </Button>
           </div>
         ) : null}
         {correcting ? <CorrectionForm item={item} view={view} onDone={() => setCorrecting(false)} /> : null}
@@ -134,10 +143,23 @@ function Comments({ eventId }: { eventId: string }) {
     <div className="comment-thread">
       {(list.data ?? []).map((c) => (
         <div key={c.id} className="row row--start gap-2">
-          <Avatar name={c.author.displayName} src={c.author.avatarUrl} size="sm" />
+          {c.author.slug ? (
+            <Link to={`/u/${c.author.slug}`} aria-label={c.author.displayName}>
+              <Avatar name={c.author.displayName} src={c.author.avatarUrl} size="sm" />
+            </Link>
+          ) : (
+            <Avatar name={c.author.displayName} src={c.author.avatarUrl} size="sm" />
+          )}
           <div className="stack gap-1">
             <span className="text text--xs">
-              <strong>{c.author.displayName}</strong> <span className="text--muted">{relative(c.createdAt)}</span>
+              {c.author.slug ? (
+                <Link to={`/u/${c.author.slug}`} className="link text--strong">
+                  {c.author.displayName}
+                </Link>
+              ) : (
+                <strong>{c.author.displayName}</strong>
+              )}{' '}
+              <span className="text--muted">{relative(c.createdAt)}</span>
             </span>
             <span className="text text--sm text--pre">{c.body}</span>
           </div>

@@ -42,6 +42,13 @@ export function useSendEmail() {
   })
 }
 
+export function useMessages(params?: { opportunityId?: string; contactId?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ['messages', params],
+    queryFn: async () => (await unwrap(getApiClient().GET('/email/messages', { params: { query: params } }))).data,
+  })
+}
+
 export function useMessage(id: string | null) {
   return useQuery({
     queryKey: ['message', id],

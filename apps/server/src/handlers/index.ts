@@ -13,3 +13,5 @@ export * from './intake'
 export * from './email'
 export * from './profiles'
 export * from './manage'
+export * from './integrations'
+

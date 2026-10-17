@@ -41,7 +41,7 @@ export async function seedAll(passwordHash: string) {
 
   // ── NV Custom Homes ──────────────────────────────────────────────────────
   at(90)
-  const nv = await company('NV Custom Homes', DEMO_COMPANY_SLUG, 'America/Boise', 'https://g.page/r/nv-custom-homes/review', NV_PEOPLE, passwordHash)
+  const nv = await company('NV Custom Homes', DEMO_COMPANY_SLUG, 'America/Boise', 'https://g.page/r/nv-custom-homes/review', NV_PEOPLE, passwordHash, '/brand/nv-custom-homes.svg')
   const c = nv.cast
 
   for (const r of [
@@ -149,8 +149,8 @@ function roleText(p: Person) {
 }
 
 /** Creates (or reuses) users, a company with the roofing workflow, and memberships. */
-async function company(name: string, slug: string, timezone: string, reviewUrl: string, people: Person[], passwordHash: string) {
-  const org = await db.organization.create({ data: { name, slug, timezone, reviewUrl, createdAt: new Date() } })
+async function company(name: string, slug: string, timezone: string, reviewUrl: string, people: Person[], passwordHash: string, logoUrl?: string) {
+  const org = await db.organization.create({ data: { name, slug, timezone, reviewUrl, logoUrl, createdAt: new Date() } })
   const cast: Cast = {}
   for (const p of people) {
     const user =

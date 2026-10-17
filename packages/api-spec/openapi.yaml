@@ -986,7 +986,7 @@ components:
           items: { type: string }
     ImportRun:
       type: object
-      required: [id, fileName, sourceName, state, rowsSeen, created, linked, duplicatesFlagged, errors, startedAt, finishedAt, issues]
+      required: [id, fileName, sourceName, state, rowsSeen, created, updated, linked, duplicatesFlagged, errors, startedAt, finishedAt, issues]
       properties:
         id: { type: string }
         fileName: { type: string }
@@ -994,11 +994,101 @@ components:
         state: { type: string, enum: [RUNNING, SUCCEEDED, PARTIALLY_COMPLETED, FAILED] }
         rowsSeen: { type: integer }
         created: { type: integer }
+        updated: { type: integer }
         linked: { type: integer }
         duplicatesFlagged: { type: integer }
         errors: { type: integer }
         startedAt: { type: string, format: date-time }
         finishedAt: { type: [string, 'null'], format: date-time }
+        issues:
+          type: array
+          items:
+            type: object
+            required: [rowNumber, message]
+            properties:
+              rowNumber: { type: integer }
+              message: { type: string }
+    IntegrationProvider:
+      type: string
+      enum: [WOOCOMMERCE, HUBSPOT, ZAPIER, EMAIL_SERVER]
+    IntegrationStatus:
+      type: string
+      enum: [CONNECTED, DISCONNECTED, ERROR]
+    Integration:
+      type: object
+      required: [id, provider, name, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        provider: { $ref: '#/components/schemas/IntegrationProvider' }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/IntegrationStatus' }
+        config:
+          type: [object, 'null']
+          additionalProperties: true
+        hasCredentials: { type: boolean }
+        lastSyncedAt: { type: [string, 'null'], format: date-time }
+        lastTestedAt: { type: [string, 'null'], format: date-time }
+        errorMessage: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UpdateIntegrationInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+        credentials:
+          type: string
+    TestIntegrationInput:
+      type: object
+      properties:
+        config:
+          type: object
+          additionalProperties: true
+        credentials:
+          type: string
+    TestIntegrationResult:
+      type: object
+      required: [success, message]
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        details:
+          type: [object, 'null']
+          additionalProperties: true
+    SyncIntegrationInput:
+      type: object
+      properties:
+        updateExisting:
+          type: boolean
+          default: true
+        createJobs:
+          type: boolean
+          default: false
+        defaultJobTitle:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        credentials:
+          type: string
+    SyncResult:
+      type: object
+      required: [runId, provider, sourceName, state, rowsSeen, created, updated, linked, duplicatesFlagged, errors, skipped, issues]
+      properties:
+        runId: { type: string }
+        provider: { $ref: '#/components/schemas/IntegrationProvider' }
+        sourceName: { type: string }
+        state: { type: string, enum: [RUNNING, SUCCEEDED, PARTIALLY_COMPLETED, FAILED] }
+        rowsSeen: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        linked: { type: integer }
+        duplicatesFlagged: { type: integer }
+        skipped: { type: integer }
+        errors: { type: integer }
         issues:
           type: array
           items:
@@ -1247,6 +1337,9 @@ components:
         key: { type: string }
         label: { type: string }
         emoji: { type: string }
+        category:
+          type: string
+          enum: [cheer, gift, award]
     Recognition:
       type: object
       required: [id, type, giver, recipient, note, createdAt]
@@ -1400,6 +1493,82 @@ components:
               sales: { type: integer }
               salesValueCents: { type: integer }
               calls: { type: integer }
+    CompanyHome:
+      type: object
+      required: [since, stages, waiting, company, you, tasks]
+      properties:
+        tasks:
+          type: array
+          description: >-
+            The signed-in member's own to-do list, most urgent first (max 12): follow-ups due by
+            the end of today (company timezone), new leads they own that nobody has contacted,
+            scheduled visits in the next 7 days on their jobs or assigned to them, and their
+            jobs with no activity for 7 days.
+          items: { $ref: '#/components/schemas/HomeTask' }
+        since: { type: string, format: date-time, description: When the company joined Riverly. }
+        stages:
+          type: array
+          description: Open or won jobs in each active stage right now, in workflow order.
+          items:
+            type: object
+            required: [stageId, count]
+            properties:
+              stageId: { type: string }
+              count: { type: integer }
+        waiting:
+          type: object
+          description: Open or won jobs needing action now; matches the Contacts attention filters.
+          required: [notContacted, overdueFollowUps, upcomingAppointments, quiet]
+          properties:
+            notContacted: { type: integer }
+            overdueFollowUps: { type: integer }
+            upcomingAppointments: { type: integer }
+            quiet: { type: integer }
+        company:
+          description: Company totals, plus homeowners on file and leads received.
+          allOf:
+            - $ref: '#/components/schemas/WorkTotals'
+            - type: object
+              required: [contacts, leads]
+              properties:
+                contacts: { type: integer }
+                leads: { type: integer }
+        you:
+          description: The same totals credited to the signed-in member, plus jobs they own now.
+          allOf:
+            - $ref: '#/components/schemas/WorkTotals'
+            - type: object
+              required: [openJobs]
+              properties:
+                openJobs: { type: integer }
+    HomeTask:
+      type: object
+      required: [kind, opportunityId, contactName, title, at]
+      properties:
+        kind: { type: string, enum: [follow_up, first_call, visit, quiet] }
+        opportunityId: { type: string }
+        contactName: { type: string }
+        title: { type: string }
+        at:
+          type: string
+          format: date-time
+          description: follow_up = when it was due; first_call = lead received; visit = start time; quiet = last activity.
+    WorkTotals:
+      type: object
+      description: >-
+        All-time totals. calls = contact attempts logged with the phone method (by whoever logged
+        them). inspectionsBooked and reviewsRequested = created by. sales = jobs ever moved forward
+        into Contract Signed or later; salesValueCents sums their manually entered contract values
+        (unverified, not cash collected). completed = jobs ever moved into the final stage. Sales
+        and completed jobs are credited to the job owner.
+      required: [calls, inspectionsBooked, sales, salesValueCents, completed, reviewsRequested]
+      properties:
+        calls: { type: integer }
+        inspectionsBooked: { type: integer }
+        sales: { type: integer }
+        salesValueCents: { type: integer }
+        completed: { type: integer }
+        reviewsRequested: { type: integer }
     CountRow:
       type: object
       required: [key, label, count]
@@ -3303,6 +3472,27 @@ paths:
                   data: { $ref: '#/components/schemas/SalesBoard' }
         '403': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+  /company/home:
+    get:
+      operationId: getCompanyHome
+      summary: Get the company home page numbers
+      description: >-
+        Work waiting right now (same rules as the Contacts "Needs attention" filters), all-time
+        company totals since the company joined, and the signed-in member's own all-time totals.
+        Visible to every member.
+      tags: [manage]
+      responses:
+        '200':
+          description: Company home numbers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CompanyHome' }
+        '403': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
   /reports/pipeline:
     get:
       operationId: getPipelineReport
@@ -3369,5 +3559,181 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/WorkerRun' }
         '403': { $ref: '#/components/responses/Error' }
-
         '401': { $ref: '#/components/responses/Error' }
+  /integrations:
+    get:
+      operationId: listIntegrations
+      summary: List all integrations for the company
+      tags: [integrations]
+      responses:
+        '200':
+          description: List of integrations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Integration' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /integrations/{provider}:
+    get:
+      operationId: getIntegration
+      summary: Get integration details
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { $ref: '#/components/schemas/IntegrationProvider' }
+      responses:
+        '200':
+          description: Integration details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Integration' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: updateIntegration
+      summary: Save integration configuration and credentials
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { $ref: '#/components/schemas/IntegrationProvider' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateIntegrationInput' }
+      responses:
+        '200':
+          description: Updated integration
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Integration' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: disconnectIntegration
+      summary: Disconnect integration and wipe stored credentials
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { $ref: '#/components/schemas/IntegrationProvider' }
+      responses:
+        '200':
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Integration' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /integrations/{provider}/test:
+    post:
+      operationId: testIntegration
+      summary: Test integration connection
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { $ref: '#/components/schemas/IntegrationProvider' }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TestIntegrationInput' }
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/TestIntegrationResult' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /integrations/{provider}/sync:
+    post:
+      operationId: syncIntegration
+      summary: Fetch and ingest records from integration with update/upsert
+      tags: [integrations]
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { $ref: '#/components/schemas/IntegrationProvider' }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncIntegrationInput' }
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/SyncResult' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /integrations/zapier/webhook:
+    post:
+      operationId: handleZapierWebhook
+      summary: Inbound webhook to receive leads from Zapier
+      tags: [integrations]
+      security: []
+      parameters:
+        - in: query
+          name: token
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '202':
+          description: Ingestion result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [received]
+                    properties:
+                      received: { type: boolean }
+                      status: { type: string }
+                      contactId: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }

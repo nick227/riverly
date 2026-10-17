@@ -4,6 +4,7 @@ import { useAcceptInvitation, useInvitation } from '@project/sdk'
 import { Button, Input } from '@/components/primitives/Controls'
 import { Field } from '@/components/patterns/Field'
 import { Notice, PageState } from '@/components/patterns/States'
+import { useEntityTitle } from '@/lib/pageTitle'
 import { AuthFrame } from '../components/AuthFrame'
 import { roleLabel } from '../config/labels'
 
@@ -14,6 +15,18 @@ export default function InviteView() {
   const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
+
+  const orgName = invite.data?.organizationName
+  useEntityTitle(
+    {
+      type: 'invite',
+      name: orgName,
+      description: orgName
+        ? `Accept your invitation to join ${orgName} on Riverly CRM.`
+        : null,
+    },
+    [orgName],
+  )
 
   if (invite.isLoading) return <PageState />
   if (!invite.data)
@@ -26,7 +39,7 @@ export default function InviteView() {
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    accept.mutate({ password, ...(inv.hasAccount ? {} : { displayName }) }, { onSuccess: () => navigate('/contacts', { replace: true }) })
+    accept.mutate({ password, ...(inv.hasAccount ? {} : { displayName }) }, { onSuccess: () => navigate('/', { replace: true }) })
   }
 
   return (

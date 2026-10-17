@@ -77,7 +77,7 @@ export function TeamSettings() {
                   const editable = m.userId !== me?.id && (isOwner || (m.role !== 'ADMIN' && m.role !== 'OWNER'))
                   return (
                     <tr key={m.userId}>
-                      <td><Identity name={m.displayName} src={m.avatarUrl} size="sm" secondary={m.email} /></td>
+                      <td><Identity name={m.displayName} src={m.avatarUrl} size="sm" secondary={m.email} slug={m.slug} /></td>
                       <td style={{ width: 160 }}>
                         {editable ? (
                           <Select size_="sm" aria-label={`Role for ${m.displayName}`} value={m.role} options={roleOptions.some((o) => o.value === m.role) ? roleOptions : [{ value: m.role, label: roleLabel(m.role) }, ...roleOptions]} onChange={(e) => update.mutate({ userId: m.userId, role: e.target.value as Role }, { onSuccess: () => toast.success('Role updated'), onError: (err) => toast.error(err) })} />

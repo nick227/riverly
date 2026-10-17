@@ -6,6 +6,7 @@ import { conflict, notFound, unprocessable } from '../lib/errors'
 import { rateLimit } from '../lib/rateLimit'
 import { opportunitySummary, opportunitySummaryInclude, recognitionsOut, recognitionTypeOut, userSummary } from '../lib/serialize'
 import { hydrate } from './ActivityService'
+import { DEFAULT_RECOGNITION_TYPES } from './provisioning'
 import { AuthService } from './AuthService'
 
 // Profile highlights are a filtered projection of Activity — never a second source of truth.
@@ -91,8 +92,19 @@ export class ProfileService {
 
   async recognitionTypes(auth: AuthContext) {
     const ctx = requireOrg(auth)
-    const rows = await db.recognitionType.findMany({ where: { organizationId: ctx.orgId, isEnabled: true }, orderBy: { createdAt: 'asc' } })
-    return rows.map(recognitionTypeOut)
+    let rows = await db.recognitionType.findMany({ where: { organizationId: ctx.orgId, isEnabled: true }, orderBy: { createdAt: 'asc' } })
+    const existingKeys = new Set(rows.map((r) => r.key))
+    const missing = DEFAULT_RECOGNITION_TYPES.filter((t) => !existingKeys.has(t.key))
+    if (missing.length > 0) {
+      await db.recognitionType.createMany({
+        data: missing.map((m) => ({ organizationId: ctx.orgId, ...m })),
+        skipDuplicates: true,
+      })
+      rows = await db.recognitionType.findMany({ where: { organizationId: ctx.orgId, isEnabled: true }, orderBy: { createdAt: 'asc' } })
+    }
+    const canonicalKeys = new Set(DEFAULT_RECOGNITION_TYPES.map((t) => t.key))
+    const canonicalRows = rows.filter((r) => canonicalKeys.has(r.key))
+    return canonicalRows.map(recognitionTypeOut)
   }
 
   async give(auth: AuthContext, input: { recipientUserId: string; typeId: string; note?: string | null }) {

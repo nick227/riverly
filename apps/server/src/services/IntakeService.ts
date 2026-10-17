@@ -1,4 +1,4 @@
-import { db, type Prisma, type Source, type TimestampProvenance } from '@project/db'
+import { db, type IntegrationProvider, type Prisma, type Source, type TimestampProvenance } from '@project/db'
 import { normalizeEmail, normalizePhone, type WorkflowDefinition } from '@project/shared'
 import { parse } from 'csv-parse/sync'
 import { appendActivity, transaction } from '../lib/activity'
@@ -12,6 +12,8 @@ import { createJobTx, type NewJobFields } from './jobs'
 import { ensureSource } from './sources'
 
 type Tx = Prisma.TransactionClient
+
+import type { ThirdPartyCustomer } from '../integrations/types'
 
 const IMPORT_TARGETS = [
   'name',
@@ -56,11 +58,12 @@ type Proposed = {
   providerTimestamp: Date | null
 }
 
-type IngestResult = { status: 'NEW_CONTACT' | 'LINKED_EXISTING' | 'PENDING_REVIEW' | 'DUPLICATE_RECORD'; contactId: string | null; opportunityId: string | null }
+type IngestResult = { status: 'NEW_CONTACT' | 'LINKED_EXISTING' | 'UPDATED_EXISTING' | 'PENDING_REVIEW' | 'DUPLICATE_RECORD'; contactId: string | null; opportunityId: string | null }
 
-type Tally = { rowsSeen: number; created: number; linked: number; duplicatesFlagged: number; errors: number; skipped: number }
+type Tally = { rowsSeen: number; created: number; updated: number; linked: number; duplicatesFlagged: number; errors: number; skipped: number }
 const TALLY_FOR: Record<IngestResult['status'], keyof Tally> = {
   NEW_CONTACT: 'created',
+  UPDATED_EXISTING: 'updated',
   LINKED_EXISTING: 'linked',
   PENDING_REVIEW: 'duplicatesFlagged',
   DUPLICATE_RECORD: 'skipped',
@@ -113,7 +116,7 @@ export class IntakeService {
         createdById: ctx.userId,
       },
     })
-    const tally: Tally = { rowsSeen: 0, created: 0, linked: 0, duplicatesFlagged: 0, errors: 0, skipped: 0 }
+    const tally: Tally = { rowsSeen: 0, created: 0, updated: 0, linked: 0, duplicatesFlagged: 0, errors: 0, skipped: 0 }
     const defaultJobTitle = input.createJobs ? input.defaultJobTitle?.trim() || 'Imported job' : null
     for (let i = 1; i < rows.length; i++) {
       tally.rowsSeen++
@@ -147,7 +150,7 @@ export class IntakeService {
     await transaction(async (tx) => {
       await tx.importRun.update({
         where: { id: run.id },
-        data: { state, rowsSeen: tally.rowsSeen, created: tally.created, linked: tally.linked, duplicatesFlagged: tally.duplicatesFlagged, errors: tally.errors, finishedAt: new Date() },
+        data: { state, rowsSeen: tally.rowsSeen, created: tally.created, updated: tally.updated, linked: tally.linked, duplicatesFlagged: tally.duplicatesFlagged, errors: tally.errors, finishedAt: new Date() },
       })
       // One grouped river entry per import run, not one per row.
       await appendActivity(tx, {
@@ -162,6 +165,112 @@ export class IntakeService {
       })
     })
     return this.importOut(run.id)
+  }
+
+  async ingestCustomers(
+    auth: AuthContext,
+    input: {
+      provider: string
+      sourceName: string
+      customers: ThirdPartyCustomer[]
+      updateExisting?: boolean
+      createJobs?: boolean
+      defaultJobTitle?: string
+      integrationId?: string | null
+    },
+  ) {
+    const ctx = requirePermission(auth, 'imports.run')
+    const workflow = await currentWorkflow(ctx.orgId)
+    const source = await db.$transaction((tx) => ensureSource(tx, ctx.orgId, 'API', input.sourceName))
+    const run = await db.importRun.create({
+      data: {
+        organizationId: ctx.orgId,
+        sourceId: source.id,
+        fileName: `${input.provider} Sync (${new Date().toLocaleDateString('en-US')})`,
+        state: 'RUNNING',
+        columnMapping: { provider: input.provider, updateExisting: !!input.updateExisting, createJobs: !!input.createJobs },
+        createdById: ctx.userId,
+      },
+    })
+    const tally: Tally = { rowsSeen: 0, created: 0, updated: 0, linked: 0, duplicatesFlagged: 0, errors: 0, skipped: 0 }
+    const defaultJobTitle = input.createJobs ? input.defaultJobTitle?.trim() || `${input.provider} lead` : null
+
+    for (let i = 0; i < input.customers.length; i++) {
+      tally.rowsSeen++
+      const c = input.customers[i]!
+      try {
+        const proposed: Proposed = {
+          contact: {
+            name: c.name,
+            email: c.email ?? null,
+            phone: c.phone ?? null,
+            addressLine: c.addressLine ?? null,
+            city: c.city ?? null,
+            region: c.region ?? null,
+            postalCode: c.postalCode ?? null,
+            notes: c.notes ?? null,
+          },
+          job: defaultJobTitle ? { title: c.jobTitle ?? defaultJobTitle, propertyAddress: c.propertyAddress ?? c.addressLine, inquiry: c.inquiry } : null,
+          providerTimestamp: c.receivedAt ?? null,
+        }
+        assertImportable(proposed)
+        const result = await transaction((tx) =>
+          ingest(tx, {
+            organizationId: ctx.orgId,
+            workflow,
+            source,
+            externalId: c.externalId,
+            rawPayload: (c.rawPayload ?? c) as Record<string, unknown>,
+            proposed,
+            importRunId: run.id,
+            providerTimestampVia: 'PROVIDER',
+            actor: { type: 'INTEGRATION', label: input.provider },
+            announceReview: true,
+            updateExisting: input.updateExisting ?? true,
+            provider: input.provider as IntegrationProvider,
+            integrationId: input.integrationId ?? null,
+          }),
+        )
+        tally[TALLY_FOR[result.status]]++
+      } catch (err) {
+        tally.errors++
+        await db.importIssue.create({
+          data: { importRunId: run.id, rowNumber: i + 1, message: (err as Error).message?.slice(0, 500) ?? 'Record failed' },
+        })
+      }
+    }
+    const state = runState(tally)
+    await transaction(async (tx) => {
+      await tx.importRun.update({
+        where: { id: run.id },
+        data: { state, rowsSeen: tally.rowsSeen, created: tally.created, updated: tally.updated, linked: tally.linked, duplicatesFlagged: tally.duplicatesFlagged, errors: tally.errors, finishedAt: new Date() },
+      })
+      await appendActivity(tx, {
+        organizationId: ctx.orgId,
+        type: 'import.completed',
+        category: 'SYSTEM',
+        actorType: 'USER',
+        actorId: ctx.userId,
+        verification: 'SYSTEM_RECORDED',
+        importRunId: run.id,
+        payload: { importRunId: run.id, provider: input.provider, sourceName: input.sourceName, state, ...tally },
+      })
+    })
+    const out = await this.importOut(run.id)
+    return {
+      runId: run.id,
+      provider: input.provider as any,
+      sourceName: input.sourceName,
+      state: out.state,
+      rowsSeen: out.rowsSeen,
+      created: out.created,
+      updated: out.updated,
+      linked: out.linked,
+      duplicatesFlagged: out.duplicatesFlagged,
+      skipped: tally.skipped,
+      errors: out.errors,
+      issues: out.issues,
+    }
   }
 
   async listImports(auth: AuthContext) {
@@ -183,6 +292,7 @@ export class IntakeService {
       state: r.state,
       rowsSeen: r.rowsSeen,
       created: r.created,
+      updated: r.updated,
       linked: r.linked,
       duplicatesFlagged: r.duplicatesFlagged,
       errors: r.errors,
@@ -341,6 +451,41 @@ export class IntakeService {
     )
     return { received: true }
   }
+
+  async ingestSingle(
+    orgId: string,
+    input: {
+      sourceName: string
+      externalId: string
+      proposed: Proposed
+      rawPayload: Record<string, unknown>
+      providerTimestampVia?: TimestampProvenance
+      actorLabel?: string
+      updateExisting?: boolean
+      provider?: IntegrationProvider
+      integrationId?: string | null
+    },
+  ) {
+    const workflow = await currentWorkflow(orgId)
+    const source = await db.$transaction((tx) => ensureSource(tx, orgId, 'API', input.sourceName))
+    return transaction((tx) =>
+      ingest(tx, {
+        organizationId: orgId,
+        workflow,
+        source,
+        externalId: input.externalId,
+        rawPayload: input.rawPayload,
+        proposed: input.proposed,
+        importRunId: null,
+        providerTimestampVia: input.providerTimestampVia ?? 'PROVIDER',
+        actor: { type: 'INTEGRATION', label: input.actorLabel ?? input.sourceName },
+        announceReview: true,
+        updateExisting: input.updateExisting ?? true,
+        provider: input.provider,
+        integrationId: input.integrationId ?? null,
+      }),
+    )
+  }
 }
 
 /** Shared ingestion for CSV rows and form submissions. */
@@ -379,23 +524,146 @@ async function ingest(
     workflow: Awaited<ReturnType<typeof currentWorkflow>>
     source: Source
     externalId: string
-    rawPayload: Record<string, unknown>
+    rawPayload?: Record<string, unknown>
     proposed: Proposed
     importRunId: string | null
     providerTimestampVia: TimestampProvenance
     actor: { type: 'USER'; userId: string } | { type: 'INTEGRATION'; label: string }
     announceReview: boolean
+    updateExisting?: boolean
+    provider?: IntegrationProvider
+    integrationId?: string | null
   },
 ): Promise<IngestResult> {
+  const safePayload = a.rawPayload ?? {}
+  const contentHash = sha256(JSON.stringify(safePayload))
+  const providerTimestamp = a.proposed.providerTimestamp ?? (a.providerTimestampVia === 'PROVIDER' ? new Date() : null)
+
+  // 1. Check if a ContactProvenance record already exists for this external provider + ID
+  let existingProv: (Awaited<ReturnType<typeof tx.contactProvenance.findUnique>> & { contact?: any }) | null = null
+  if (a.provider) {
+    existingProv = await tx.contactProvenance.findUnique({
+      where: {
+        organizationId_provider_externalId: {
+          organizationId: a.organizationId,
+          provider: a.provider,
+          externalId: a.externalId,
+        },
+      },
+      include: { contact: true },
+    })
+  }
+
+  // 2. If provenance exists and contact is active, we have a deterministic 100% match!
+  if (existingProv && existingProv.contact && !existingProv.contact.deletedAt) {
+    const current = existingProv.contact
+    const updates: Record<string, unknown> = {}
+    if (a.updateExisting) {
+      if (a.proposed.contact.phone && !current.phone) updates.phone = a.proposed.contact.phone
+      if (a.proposed.contact.addressLine && !current.addressLine) updates.addressLine = a.proposed.contact.addressLine
+      if (a.proposed.contact.city && !current.city) updates.city = a.proposed.contact.city
+      if (a.proposed.contact.region && !current.region) updates.region = a.proposed.contact.region
+      if (a.proposed.contact.postalCode && !current.postalCode) updates.postalCode = a.proposed.contact.postalCode
+      if (a.proposed.contact.notes) {
+        const note = a.proposed.contact.notes.trim()
+        if (!current.notes) {
+          updates.notes = note
+        } else if (!current.notes.includes(note)) {
+          updates.notes = `${current.notes}\n${note}`
+        }
+      }
+    }
+    const hasChanges = Object.keys(updates).length > 0
+    if (hasChanges) {
+      await tx.contact.update({ where: { id: current.id }, data: cleanContact(updates) })
+    }
+    await tx.contactProvenance.update({
+      where: { id: existingProv.id },
+      data: {
+        lastSyncedAt: new Date(),
+        externalData: a.rawPayload as Prisma.InputJsonValue,
+        integrationId: a.integrationId !== undefined ? a.integrationId : existingProv.integrationId,
+      },
+    })
+    const exists = await tx.sourceRecord.findUnique({
+      where: { organizationId_sourceId_entityKind_externalId: { organizationId: a.organizationId, sourceId: a.source.id, entityKind: 'lead', externalId: a.externalId } },
+    })
+    if (exists) {
+      await tx.sourceRecord.update({
+        where: { id: exists.id },
+        data: { rawPayload: a.rawPayload as Prisma.InputJsonValue, contentHash, providerTimestamp, receivedAt: new Date() },
+      })
+    }
+    return { status: hasChanges ? 'UPDATED_EXISTING' : 'LINKED_EXISTING', contactId: current.id, opportunityId: null }
+  }
+
+  // 3. Check for existing SourceRecord (e.g. CSV duplicate or previous import run)
   const exists = await tx.sourceRecord.findUnique({
     where: { organizationId_sourceId_entityKind_externalId: { organizationId: a.organizationId, sourceId: a.source.id, entityKind: 'lead', externalId: a.externalId } },
   })
-  if (exists) return { status: 'DUPLICATE_RECORD', contactId: exists.canonicalContactId, opportunityId: null }
 
+  if (exists) {
+    if (a.updateExisting && exists.canonicalContactId) {
+      const current = await tx.contact.findFirst({ where: { id: exists.canonicalContactId, organizationId: a.organizationId, deletedAt: null } })
+      if (current) {
+        const updates: Record<string, unknown> = {}
+        if (a.proposed.contact.phone && !current.phone) updates.phone = a.proposed.contact.phone
+        if (a.proposed.contact.addressLine && !current.addressLine) updates.addressLine = a.proposed.contact.addressLine
+        if (a.proposed.contact.city && !current.city) updates.city = a.proposed.contact.city
+        if (a.proposed.contact.region && !current.region) updates.region = a.proposed.contact.region
+        if (a.proposed.contact.postalCode && !current.postalCode) updates.postalCode = a.proposed.contact.postalCode
+        if (a.proposed.contact.notes) {
+          const note = a.proposed.contact.notes.trim()
+          if (!current.notes) {
+            updates.notes = note
+          } else if (!current.notes.includes(note)) {
+            updates.notes = `${current.notes}\n${note}`
+          }
+        }
+        const hasChanges = Object.keys(updates).length > 0
+        if (hasChanges) {
+          await tx.contact.update({ where: { id: current.id }, data: cleanContact(updates) })
+        }
+        await tx.sourceRecord.update({
+          where: { id: exists.id },
+          data: { rawPayload: a.rawPayload as Prisma.InputJsonValue, contentHash, providerTimestamp, receivedAt: new Date() },
+        })
+        if (a.provider) {
+          await tx.contactProvenance.upsert({
+            where: {
+              organizationId_provider_externalId: {
+                organizationId: a.organizationId,
+                provider: a.provider,
+                externalId: a.externalId,
+              },
+            },
+            create: {
+              organizationId: a.organizationId,
+              contactId: current.id,
+              provider: a.provider,
+              integrationId: a.integrationId ?? null,
+              externalId: a.externalId,
+              externalData: a.rawPayload as Prisma.InputJsonValue,
+              lastSyncedAt: new Date(),
+            },
+            update: {
+              contactId: current.id,
+              lastSyncedAt: new Date(),
+              externalData: a.rawPayload as Prisma.InputJsonValue,
+              integrationId: a.integrationId !== undefined ? a.integrationId : undefined,
+            },
+          })
+        }
+        return { status: hasChanges ? 'UPDATED_EXISTING' : 'LINKED_EXISTING', contactId: current.id, opportunityId: null }
+      }
+    }
+    return { status: 'DUPLICATE_RECORD', contactId: exists.canonicalContactId, opportunityId: null }
+  }
+
+  // 4. Candidate matching for new rows
   const candidates = await findMatches(a.organizationId, a.proposed.contact)
   const confident = candidates.length === 1 && candidates[0]!.matchedOn.includes('email') && candidates[0]!.matchedOn.includes('name')
-  const status = candidates.length === 0 ? 'NEW_CONTACT' : confident ? 'LINKED_EXISTING' : 'PENDING_REVIEW'
-  const providerTimestamp = a.proposed.providerTimestamp ?? (a.providerTimestampVia === 'PROVIDER' ? new Date() : null)
+  const status = candidates.length === 0 ? 'NEW_CONTACT' : confident ? (a.updateExisting ? 'UPDATED_EXISTING' : 'LINKED_EXISTING') : 'PENDING_REVIEW'
 
   const record = await tx.sourceRecord.create({
     data: {
@@ -404,11 +672,11 @@ async function ingest(
       externalId: a.externalId,
       importRunId: a.importRunId,
       rawPayload: a.rawPayload as Prisma.InputJsonValue,
-      contentHash: sha256(JSON.stringify(a.rawPayload)),
+      contentHash,
       providerTimestamp,
       providerTimestampVia: providerTimestamp ? a.providerTimestampVia : null,
       receivedAt: new Date(),
-      dedupeStatus: status,
+      dedupeStatus: status === 'UPDATED_EXISTING' ? 'LINKED_EXISTING' : status,
       matchCandidateIds: candidates.map((c) => c.contact.id),
     },
   })
@@ -428,23 +696,85 @@ async function ingest(
     return { status, contactId: null, opportunityId: null }
   }
 
-  const contactId =
-    status === 'LINKED_EXISTING'
-      ? candidates[0]!.contact.id
-      : (
-          await tx.contact.create({
-            data: {
-              organizationId: a.organizationId,
-              ...cleanContact(a.proposed.contact),
-              name: a.proposed.contact.name,
-              createdById: a.actor.type === 'USER' ? a.actor.userId : null,
-              createdAt: new Date(),
-            },
-          })
-        ).id
+  let contactId: string
+  if (status === 'LINKED_EXISTING' || status === 'UPDATED_EXISTING') {
+    contactId = candidates[0]!.contact.id
+    if (status === 'UPDATED_EXISTING') {
+      const current = candidates[0]!.contact
+      const updates: Record<string, unknown> = {}
+      if (a.proposed.contact.phone && !current.phone) updates.phone = a.proposed.contact.phone
+      if (a.proposed.contact.addressLine && !current.addressLine) updates.addressLine = a.proposed.contact.addressLine
+      if (a.proposed.contact.city && !current.city) updates.city = a.proposed.contact.city
+      if (a.proposed.contact.region && !current.region) updates.region = a.proposed.contact.region
+      if (a.proposed.contact.postalCode && !current.postalCode) updates.postalCode = a.proposed.contact.postalCode
+      if (a.proposed.contact.notes) {
+        const note = a.proposed.contact.notes.trim()
+        if (!current.notes) {
+          updates.notes = note
+        } else if (!current.notes.includes(note)) {
+          updates.notes = `${current.notes}\n${note}`
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await tx.contact.update({ where: { id: current.id }, data: cleanContact(updates) })
+      }
+    }
+    if (a.provider) {
+      await tx.contactProvenance.upsert({
+        where: {
+          organizationId_provider_externalId: {
+            organizationId: a.organizationId,
+            provider: a.provider,
+            externalId: a.externalId,
+          },
+        },
+        create: {
+          organizationId: a.organizationId,
+          contactId,
+          provider: a.provider,
+          integrationId: a.integrationId ?? null,
+          externalId: a.externalId,
+          externalData: a.rawPayload as Prisma.InputJsonValue,
+          lastSyncedAt: new Date(),
+        },
+        update: {
+          contactId,
+          lastSyncedAt: new Date(),
+          externalData: a.rawPayload as Prisma.InputJsonValue,
+          integrationId: a.integrationId !== undefined ? a.integrationId : undefined,
+        },
+      })
+    }
+  } else {
+    const created = await tx.contact.create({
+      data: {
+        organizationId: a.organizationId,
+        ...cleanContact(a.proposed.contact),
+        name: a.proposed.contact.name,
+        createdById: a.actor.type === 'USER' ? a.actor.userId : null,
+        createdAt: new Date(),
+      },
+    })
+    contactId = created.id
+
+    if (a.provider) {
+      await tx.contactProvenance.create({
+        data: {
+          organizationId: a.organizationId,
+          contactId,
+          provider: a.provider,
+          integrationId: a.integrationId ?? null,
+          externalId: a.externalId,
+          externalData: a.rawPayload as Prisma.InputJsonValue,
+          lastSyncedAt: new Date(),
+        },
+      })
+    }
+  }
+
   await tx.sourceRecord.update({ where: { id: record.id }, data: { canonicalContactId: contactId } })
   await tx.contactSourceLink.create({
-    data: { organizationId: a.organizationId, contactId, sourceRecordId: record.id, matchedBy: status === 'LINKED_EXISTING' ? 'email+name' : 'created' },
+    data: { organizationId: a.organizationId, contactId, sourceRecordId: record.id, matchedBy: status === 'NEW_CONTACT' ? 'created' : 'email+name' },
   })
   let opportunityId: string | null = null
   if (a.proposed.job) {
@@ -502,9 +832,24 @@ function proposeFromForm(raw: Record<string, unknown>, def: WorkflowDefinition):
   const s = (k: string) => (typeof raw[k] === 'string' ? (raw[k] as string).trim() || null : null)
   const leadSource = def.fields.find((f) => f.binding === 'opportunity.leadSourceOptionId')
   const webForm = leadSource?.options?.find((o) => o.id === 'web_form' && !o.retired)
+  const fullName = s('name') || [s('firstName'), s('lastName')].filter(Boolean).join(' ') || ''
   return {
-    contact: { name: s('name') ?? '', email: s('email'), phone: s('phone'), addressLine: s('address') },
-    job: { title: s('service') ?? 'Website inquiry', propertyAddress: s('address'), inquiry: s('message'), leadSourceOptionId: webForm?.id ?? null },
+    contact: {
+      name: fullName,
+      email: s('email'),
+      phone: s('phone') || s('mobile') || s('cell'),
+      addressLine: s('address') || s('addressLine'),
+      city: s('city'),
+      region: s('region') || s('state'),
+      postalCode: s('postalCode') || s('zip'),
+      notes: s('notes'),
+    },
+    job: {
+      title: s('service') ?? s('jobTitle') ?? 'Inbound inquiry',
+      propertyAddress: s('propertyAddress') || s('address') || s('addressLine'),
+      inquiry: s('inquiry') || s('notes') || s('message'),
+      leadSourceOptionId: webForm?.id ?? null,
+    },
     providerTimestamp: null,
   }
 }
@@ -513,8 +858,10 @@ function proposeFromForm(raw: Record<string, unknown>, def: WorkflowDefinition):
 function proposalFor(r: { rawPayload: unknown; importRun: { columnMapping: unknown } | null }, def: WorkflowDefinition): Proposed {
   const raw = r.rawPayload as Record<string, unknown>
   if (r.importRun) {
-    const cm = r.importRun.columnMapping as { mapping: Record<string, string>; createJobs: boolean; defaultJobTitle: string | null }
-    return proposeFromRow(raw as Record<string, string>, cm.mapping, cm.createJobs ? cm.defaultJobTitle || 'Imported job' : null)
+    const cm = r.importRun.columnMapping as { mapping?: Record<string, string>; createJobs?: boolean; defaultJobTitle?: string | null; provider?: string } | null
+    if (cm?.mapping) {
+      return proposeFromRow(raw as Record<string, string>, cm.mapping, cm.createJobs ? cm.defaultJobTitle || 'Imported job' : null)
+    }
   }
   return proposeFromForm(raw, def)
 }

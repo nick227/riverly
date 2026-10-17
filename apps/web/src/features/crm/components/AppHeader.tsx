@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Activity, Building2, LogOut, Moon, Search, Sun, UserRound, Users } from 'lucide-react'
+import { Activity, Building2, CreditCard, Compass, House, LogOut, Moon, Search, Sparkles, Sun, UserRound, Users, Zap } from 'lucide-react'
 import { useLogout, useOpportunities, useSwitchOrganization } from '@project/sdk'
 import { cx } from '@/lib/cx'
 import { useSession } from '@/lib/session'
 import { useTheme } from '@/lib/theme'
 import { useDebounce } from '@/lib/useDebounce'
+import { useSubscription } from '@/lib/subscription'
 import { Avatar } from '@/components/patterns/Avatar'
 import { Menu, MenuDivider, MenuItem, MenuLabel } from '@/components/patterns/Menu'
 import { toast } from '@/components/patterns/Toast'
@@ -17,6 +18,7 @@ export function AppHeader() {
   const switchOrg = useSwitchOrganization()
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
+  const { isPremium, openUpgradeModal } = useSubscription()
   if (!me) return null
   const navClass = ({ isActive }: { isActive: boolean }) => cx('crm-header__link', isActive && 'is-active')
 
@@ -24,15 +26,15 @@ export function AppHeader() {
     <>
       <header className="crm-header">
         <div className="crm-header__inner">
-          <Link to="/contacts" className="crm-header__brand" aria-label="Home">
+          <Link to="/" className="crm-header__brand" aria-label="Company home">
             <span className="crm-header__company">{org?.name ?? 'Riverly'}</span>
           </Link>
           <nav className="crm-header__nav" aria-label="Primary">
-            <NavLink to="/contacts" className={navClass}>
-              Contacts
-            </NavLink>
             <NavLink to="/activity" className={navClass}>
               Activity
+            </NavLink>
+            <NavLink to="/contacts" className={navClass}>
+              Contacts
             </NavLink>
             {can('reports.view') ? (
               <NavLink to="/settings" className={navClass}>
@@ -41,6 +43,20 @@ export function AppHeader() {
             ) : null}
           </nav>
           <GlobalSearch />
+          {isPremium ? (
+            <span className="crm-badge--pro" title="Riverly Premium Pro Active">
+              <Sparkles size={11} /> Pro
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="crm-badge--upgrade"
+              onClick={() => openUpgradeModal('header')}
+              title="Unlock Email, AI, Reports & Broadcasting"
+            >
+              <Zap size={11} /> Free · Upgrade
+            </button>
+          )}
           <Menu
             label="Account"
             trigger={(p) => (
@@ -59,6 +75,12 @@ export function AppHeader() {
                 <MenuItem icon={<UserRound />} onSelect={() => (close(), navigate(`/u/${me.slug}`))}>
                   Your profile
                 </MenuItem>
+                <MenuItem icon={<Compass />} onSelect={() => (close(), navigate('/settings/company'))}>
+                  Setup &amp; onboarding
+                </MenuItem>
+                <MenuItem icon={<CreditCard />} onSelect={() => (close(), navigate('/settings/billing'))}>
+                  Billing &amp; plan ({isPremium ? 'Pro' : 'Free'})
+                </MenuItem>
                 <MenuItem icon={theme === 'dark' ? <Sun /> : <Moon />} onSelect={toggle}>
                   {theme === 'dark' ? 'Light theme' : 'Dark theme'}
                 </MenuItem>
@@ -75,7 +97,7 @@ export function AppHeader() {
                           onSelect={() =>
                             switchOrg.mutate(
                               { organizationId: m.organizationId },
-                              { onSuccess: () => (close(), navigate('/contacts')), onError: (e) => toast.error(e) },
+                              { onSuccess: () => (close(), navigate('/')), onError: (e) => toast.error(e) },
                             )
                           }
                         >
@@ -94,13 +116,17 @@ export function AppHeader() {
         </div>
       </header>
       <nav className="crm-nav-mobile" aria-label="Primary">
-        <NavLink to="/contacts" className={({ isActive }) => cx(isActive && 'is-active')}>
-          <Users aria-hidden />
-          Contacts
+        <NavLink to="/" end className={({ isActive }) => cx(isActive && 'is-active')}>
+          <House aria-hidden />
+          Home
         </NavLink>
         <NavLink to="/activity" className={({ isActive }) => cx(isActive && 'is-active')}>
           <Activity aria-hidden />
           Activity
+        </NavLink>
+        <NavLink to="/contacts" className={({ isActive }) => cx(isActive && 'is-active')}>
+          <Users aria-hidden />
+          Contacts
         </NavLink>
         <NavLink to={`/u/${me.slug}`} className={({ isActive }) => cx(isActive && 'is-active')}>
           <UserRound aria-hidden />

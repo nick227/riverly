@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CalendarClock, ExternalLink, MoreHorizontal, Plus, Star, Upload, X } from 'lucide-react'
 import type { FieldDef } from '@project/sdk'
 import {
@@ -92,7 +93,14 @@ export function ProgressLogControl({ field, ctx }: Props) {
         <div className="stack gap-1">
           <span className="text text--sm text--pre">{latest.note}</span>
           <span className="text text--xs text--muted">
-            {latest.actor?.displayName} · {relative(latest.occurredAt)}
+            {latest.actor?.slug ? (
+              <Link to={`/u/${latest.actor.slug}`} className="link">
+                {latest.actor.displayName}
+              </Link>
+            ) : (
+              latest.actor?.displayName
+            )}{' '}
+            · {relative(latest.occurredAt)}
           </span>
         </div>
       ) : (
@@ -138,8 +146,18 @@ export function AppointmentControl({ field, ctx }: Props) {
           <div className="stack gap-1" style={{ minWidth: 0 }}>
             <span className="text text--sm text--medium">{dateTime(shown.startsAt, ctx.timezone)}</span>
             <span className="text text--xs text--muted text--truncate">
-              {shown.externalPerson?.displayName ?? shown.assignee?.displayName ?? 'No one assigned'}
-              {shown.externalPerson?.companyName ? ` · ${shown.externalPerson.companyName}` : ''}
+              {shown.externalPerson ? (
+                <>
+                  {shown.externalPerson.displayName}
+                  {shown.externalPerson.companyName ? ` · ${shown.externalPerson.companyName}` : ''}
+                </>
+              ) : shown.assignee ? (
+                <Link to={`/u/${shown.assignee.slug}`} className="link">
+                  {shown.assignee.displayName}
+                </Link>
+              ) : (
+                'No one assigned'
+              )}
             </span>
           </div>
           <div className="row gap-1">
@@ -304,6 +322,7 @@ export function ParticipantsControl({ field, ctx }: Props) {
                 size="sm"
                 name={p.member?.displayName ?? p.externalPerson?.displayName ?? '?'}
                 src={p.member?.avatarUrl}
+                slug={p.member?.slug}
                 secondary={p.member ? 'Team member' : [p.externalPerson?.companyName, p.externalPerson?.phone].filter(Boolean).join(' · ') || 'External'}
               />
               <IconButton size="sm" label={`Remove ${field.label}`} icon={<X />} onClick={() => remove.mutate(p.id, { onError: (e) => toast.error(e) })} />
@@ -507,7 +526,6 @@ export function ReviewRequestControl({ field, ctx }: Props) {
         </div>
       ) : (
         <div className="stack gap-2">
-          <span className="text text--sm text--muted">Not requested</span>
           <Button size="sm" variant="primary" onClick={() => ctx.openEmail('review_request')}>
             <Star aria-hidden /> Request review
           </Button>

@@ -111,3 +111,54 @@ describe('listOpportunities attention filter', () => {
     expect(await ids('quiet')).not.toContain(job.id)
   })
 })
+
+describe('getCompanyHome', () => {
+  const home = (headers: Record<string, string>) => call(t.app, 'getCompanyHome', { method: 'GET', url: '/company/home', headers }, 200).then((b) => b.data)
+
+  it('requires auth', async () => {
+    await call(t.app, 'getCompanyHome', { method: 'GET', url: '/company/home' }, 401)
+  })
+
+  it('shows waiting work, all-time company totals and the viewer’s own totals, per company', async () => {
+    const member = t.world.a.member
+    const before = await home(member.headers)
+    const { job } = await makeJob(t.app, member.headers, { name: 'Home Page Sale' })
+    if (job.ownerId !== member.id)
+      await call(t.app, 'updateOpportunity', { method: 'PATCH', url: `/opportunities/${job.id}`, headers: t.world.a.manager.headers, payload: { ownerId: member.id } }, 200)
+    const fresh = await home(member.headers)
+    expect(fresh.waiting.notContacted - before.waiting.notContacted).toBe(1)
+    expect(fresh.company.leads - before.company.leads).toBe(1)
+    expect(fresh.company.contacts - before.company.contacts).toBe(1)
+    expect(fresh.you.openJobs - before.you.openJobs).toBe(1)
+    const inStage = (h: any, id: string) => h.stages.find((st: any) => st.stageId === id).count
+    expect(fresh.stages.map((st: any) => st.stageId)).toEqual(['lead', 'called', 'inspection', 'contract', 'started', 'completed'])
+    expect(inStage(fresh, 'lead') - inStage(before, 'lead')).toBe(1)
+    const task = (h: any) => h.tasks.find((x: any) => x.opportunityId === job.id)
+    expect(task(fresh)).toMatchObject({ kind: 'first_call', contactName: 'Home Page Sale' })
+    expect(task(await home(t.world.a.manager.headers))).toBeUndefined()
+
+    await call(t.app, 'updateOpportunity', { method: 'PATCH', url: `/opportunities/${job.id}`, headers: member.headers, payload: { contractValueCents: 1_200_000 } }, 200)
+    await call(t.app, 'logActivity', { method: 'POST', url: `/opportunities/${job.id}/activities`, headers: member.headers, payload: { kind: 'contact_attempt', methodId: 'phone', outcomeId: 'voicemail', nextFollowUpAt: new Date(Date.now() - 60_000).toISOString(), idempotencyKey: key() } }, 201)
+    expect(task(await home(member.headers))).toMatchObject({ kind: 'follow_up' })
+    for (const stage of ['contract', 'started', 'completed'])
+      await call(t.app, 'transitionOpportunity', { method: 'POST', url: `/opportunities/${job.id}/transitions`, headers: member.headers, payload: { toStageId: stage, idempotencyKey: key() } }, 200)
+
+    const after = await home(member.headers)
+    expect(inStage(after, 'completed') - inStage(before, 'completed')).toBe(1)
+    expect(after.waiting.notContacted).toBe(before.waiting.notContacted)
+    expect(after.waiting.overdueFollowUps - before.waiting.overdueFollowUps).toBe(1)
+    for (const scope of ['company', 'you'] as const) {
+      expect(after[scope].calls - before[scope].calls).toBe(1)
+      expect(after[scope].sales - before[scope].sales).toBe(1)
+      expect(after[scope].salesValueCents - before[scope].salesValueCents).toBe(1_200_000)
+      expect(after[scope].completed - before[scope].completed).toBe(1)
+    }
+    // Credited to the owner, not to a teammate.
+    const manager = await home(t.world.a.manager.headers)
+    expect(manager.company.sales).toBe(after.company.sales)
+    expect(manager.you.salesValueCents).not.toBeGreaterThanOrEqual(after.company.salesValueCents)
+
+    const other = await home(t.world.b.owner.headers)
+    expect(other.company).toMatchObject({ calls: 0, sales: 0, salesValueCents: 0, completed: 0 })
+  })
+})

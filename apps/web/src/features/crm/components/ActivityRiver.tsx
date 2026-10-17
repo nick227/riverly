@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Phone, Search } from 'lucide-react'
 import { useActivity, useNewActivityCount, type ActivityItem as Item, type ActivityParams } from '@project/sdk'
 import { Button, Input } from '@/components/primitives/Controls'
@@ -161,7 +162,14 @@ function AttemptGroup({ items, view, showSubject, timezone }: RowProps & { items
         </span>
         <div className="activity-item__body">
           <p className="activity-item__line">
-            <strong>{actor.displayName}</strong> {allCalls ? `made ${items.length} calls` : `logged ${items.length} contact attempts`}
+            {actor.slug ? (
+              <Link to={`/u/${actor.slug}`} className="link text--strong">
+                {actor.displayName}
+              </Link>
+            ) : (
+              <strong>{actor.displayName}</strong>
+            )}{' '}
+            {allCalls ? `made ${items.length} calls` : `logged ${items.length} contact attempts`}
           </p>
           <div className="activity-item__meta">
             <time dateTime={items[0]!.occurredAt}>{relative(items[0]!.occurredAt)}</time>

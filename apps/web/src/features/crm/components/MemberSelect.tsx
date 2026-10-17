@@ -13,3 +13,8 @@ export function useMemberName() {
   const members = useMembers()
   return (id: string | null | undefined) => members.data?.find((m) => m.userId === id)?.displayName ?? null
 }
+
+export function useMemberLookup() {
+  const members = useMembers()
+  return (id: string | null | undefined) => members.data?.find((m) => m.userId === id) ?? null
+}

@@ -4,6 +4,7 @@ import { usePublicForm, useSubmitPublicForm } from '@project/sdk'
 import { Button, Input, Textarea } from '@/components/primitives/Controls'
 import { Field } from '@/components/patterns/Field'
 import { Notice, PageState } from '@/components/patterns/States'
+import { useEntityTitle } from '@/lib/pageTitle'
 
 /** Embeddable lead form (iframe this route on a company website). No app chrome. */
 export default function PublicFormView() {
@@ -13,6 +14,18 @@ export default function PublicFormView() {
   const startedAt = useMemo(() => Date.now(), [])
   const [v, setV] = useState({ name: '', email: '', phone: '', address: '', service: '', message: '', website: '', consent: false })
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV({ ...v, [k]: e.target.value })
+
+  const companyName = form.data?.companyName
+  useEntityTitle(
+    {
+      type: 'form',
+      name: companyName,
+      description: companyName
+        ? `Request a free roofing estimate from ${companyName}. Fast turnaround and transparent estimates.`
+        : null,
+    },
+    [companyName],
+  )
 
   if (form.isLoading) return <PageState />
   if (!form.data)

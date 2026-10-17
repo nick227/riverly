@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Paperclip, X } from 'lucide-react'
 import type { AttachmentRef, OpportunityDetail } from '@project/sdk'
 import { idempotencyKey, useCreatePost, useLogActivity, useUploadAttachment } from '@project/sdk'
@@ -97,8 +98,7 @@ export function JobComposer({ job, stageId, view }: { job: OpportunityDetail; st
         value={kind}
         onChange={setKind}
         options={[
-          { value: 'note', label: 'Note' },
-          { value: 'contact_attempt', label: 'Call / contact' },
+          { value: 'contact_attempt', label: 'Contact' },
           { value: 'progress', label: 'Update' },
         ]}
       />
@@ -135,7 +135,13 @@ export function PostComposer({ opportunityId }: { opportunityId?: string }) {
   return (
     <div className="crm-composer crm-composer--inline">
       <div className="crm-composer__line">
-        <Avatar name={me.displayName} src={me.avatarUrl} size="sm" />
+        {me.slug ? (
+          <Link to={`/u/${me.slug}`} aria-label={me.displayName}>
+            <Avatar name={me.displayName} src={me.avatarUrl} size="sm" />
+          </Link>
+        ) : (
+          <Avatar name={me.displayName} src={me.avatarUrl} size="sm" />
+        )}
         <Textarea aria-label="Share an update" placeholder="Share an update with the team" value={body} onChange={(e) => setBody(e.target.value)} rows={1} />
         {attach.picker}
         <Button
