@@ -157,21 +157,25 @@
   .toast--error { background: var(--color-surface); color: var(--color-danger); border: var(--border-width) solid var(--color-danger); }
   .toast svg { width: var(--space-4); height: var(--space-4); flex: none; margin-top: var(--space-0-5); }
 
-  /* ── Loading screen (branded full-screen loader; always dark, independent of theme) ── */
+  /* ── Loading screen (branded full-screen loader; always white, independent of theme) ──
+     The backdrop is opaque from the first frame so nothing behind it shows through; only the
+     centre content fades in (after a short delay for the declarative/Suspense variant). */
   .loading-screen {
-    --loader-bg: #1c1d1f;
-    --loader-text: #ececec;
-    --loader-muted: #8b8d91;
-    --loader-track: rgb(255 255 255 / 0.08);
+    --loader-bg: #ffffff;
+    --loader-text: #1c1d1f;
+    --loader-muted: #6b6e73;
+    --loader-track: rgb(0 0 0 / 0.08);
     --loader-accent: var(--brand-river);
     position: fixed; inset: 0; z-index: var(--z-loader); display: grid; place-items: center;
     background: var(--loader-bg); color: var(--loader-text);
-    animation: fade-in var(--duration-base) var(--ease) both;
     transition: opacity 260ms var(--ease);
   }
-  .loading-screen--delayed { animation-delay: 160ms; }
   .loading-screen.is-leaving { opacity: 0; pointer-events: none; }
-  .loading-screen__center { display: flex; flex-direction: column; align-items: center; gap: var(--space-5); padding: 0 var(--space-4); text-align: center; }
+  .loading-screen__center {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-5); padding: 0 var(--space-4); text-align: center;
+    animation: fade-in var(--duration-base) var(--ease) both;
+  }
+  .loading-screen--delayed .loading-screen__center { animation-delay: 160ms; }
   .loading-screen__mark { width: 52px; height: 52px; }
   .loading-screen__mark rect { fill: var(--brand-river); }
   .loading-screen__river {

@@ -167,7 +167,7 @@
     --z-menu: 40;
     --z-overlay: 60;
     --z-toast: 80;
-    --z-loader: 90;
+    --z-loader: 2000; /* above every overlay, incl. the upgrade modal (1000/1001) */
     --duration-fast: 120ms;
     --duration-base: 180ms;
     --ease: cubic-bezier(0.2, 0, 0, 1);
