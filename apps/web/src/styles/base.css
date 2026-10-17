@@ -10,6 +10,9 @@
 }
 
 @layer base {
+  /* Last line of defence against sideways page scroll on phones; components still fix their own overflow.
+     `clip` (not `hidden`) keeps position: sticky working. */
+  html, body { overflow-x: clip; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     background: var(--color-bg);
@@ -20,6 +23,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     font-feature-settings: 'cv11', 'ss01';
+    overflow-wrap: break-word;
   }
   :focus-visible {
     outline: 2px solid var(--color-focus);

@@ -210,7 +210,7 @@ function OutboxDeliveryLogs() {
         </div>
       ) : (
         <div className="table-wrap">
-          <table className="table">
+          <table className="table table--stack">
             <thead>
               <tr>
                 <th>Recipient</th>
@@ -233,25 +233,25 @@ function OutboxDeliveryLogs() {
                         : 'warning'
                 return (
                   <tr key={m.id}>
-                    <td>
+                    <td className="table__primary">
                       <div className="stack gap-1">
                         <span className="text text--sm text--medium">{m.toName || m.toEmail}</span>
                         {m.toName ? <span className="text text--xs text--muted">{m.toEmail}</span> : null}
                       </div>
                     </td>
-                    <td className="text--truncate" style={{ maxWidth: 220 }}>
+                    <td className="text--truncate table__primary" style={{ maxWidth: 220 }}>
                       {m.subject}
                     </td>
                     <td>
                       <Badge tone={tone}>{m.status.toLowerCase()}</Badge>
                     </td>
-                    <td>
+                    <td className="table__optional">
                       <span className="text text--xs text--muted">{m.provider}</span>
                     </td>
                     <td>
                       <span className="text text--xs text--muted">{relative(m.queuedAt)}</span>
                     </td>
-                    <td>
+                    <td className={m.status === 'FAILED' ? 'table__end' : 'table__optional'}>
                       {m.status === 'FAILED' ? (
                         <Button
                           size="sm"

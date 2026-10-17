@@ -43,9 +43,6 @@ export function ReportsSettings() {
     <div className="stack gap-8">
       <div className="row row--between row--wrap gap-3">
         <div className="row row--wrap gap-3">
-          <Link to="/" className="text text--sm link">
-            Overview on Home →
-          </Link>
           <Select
             aria-label="Period"
             value={String(days)}
@@ -59,8 +56,16 @@ export function ReportsSettings() {
       <section className="stack gap-4" aria-labelledby="reports-numbers">
 
         <div className="stack gap-6">
+          <FigureTable
+            title="Job value"
+            rows={[
+              ['Estimated value of open jobs', money(p.valueSummary.estimatedOpenCents) ?? '$0'],
+              ['Signed contract value', money(p.valueSummary.contractedCents) ?? '$0'],
+              ['Jobs with a contract value', p.valueSummary.contractedJobs],
+            ]}
+          />
           <CountTable
-            title="Open jobs by step"
+            title="Open leads"
             nameHeader="Step"
             countHeader="Jobs"
             rows={p.byStage}
@@ -69,21 +74,7 @@ export function ReportsSettings() {
             extra={(r) => String(r.avgDays ?? 0)}
           />
           <CountTable
-            title="How far new leads got"
-            nameHeader="Step"
-            countHeader="Leads"
-            rows={p.reachedStage}
-          />
-          <CountTable
-            title="Lead sources"
-            nameHeader="Source"
-            countHeader="Leads"
-            rows={p.bySource}
-            extraHeader="Contract value"
-            extra={(r) => (r.valueCents ? money(r.valueCents) ?? '' : '—')}
-          />
-          <CountTable
-            title="Open jobs by person"
+            title="By person"
             nameHeader="Person"
             countHeader="Jobs"
             rows={p.byOwner}
@@ -91,27 +82,6 @@ export function ReportsSettings() {
               const s = memberSlug(r.key)
               return s ? `/u/${s}` : r.key ? `/contacts?owner=${r.key}` : ''
             }}
-          />
-        </div>
-
-        <div className="stack gap-6">
-          <FigureTable
-            title="Job value"
-            rows={[
-              ['Estimated value of open jobs', money(p.valueSummary.estimatedOpenCents) ?? '$0'],
-              ['Signed contract value', money(p.valueSummary.contractedCents) ?? '$0'],
-              ['Jobs with a contract value', p.valueSummary.contractedJobs],
-            ]}
-            note="Entered by your team. Not verified and not money collected."
-          />
-          <FigureTable
-            title="Records missing details"
-            rows={[
-              ['No lead source', p.dataQuality.missingSource],
-              ['No owner', p.dataQuality.missingOwner],
-              ['No follow-up date', p.dataQuality.missingFollowUp],
-            ]}
-            note="Fill these in so the numbers above stay accurate."
           />
         </div>
       </section>

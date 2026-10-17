@@ -39,8 +39,8 @@ export function BillingSettings() {
         />
         <CardSection>
           <div className="stack gap-4">
-            <div className="row row--between items-center p-3" style={{ background: 'var(--color-surface-subtle)', borderRadius: 'var(--radius-md)' }}>
-              <div>
+            <div className="row row--between items-center gap-3 p-3 crm-plan-summary">
+              <div className="grow">
                 <div className="row gap-2 items-center">
                   <h4 className="heading heading--4" style={{ margin: 0 }}>
                     {isPremium ? 'Riverly Premium Pro' : 'Riverly Free CRM'}

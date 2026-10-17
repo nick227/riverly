@@ -107,6 +107,11 @@
   @media (max-width: 640px) {
     .overlay { padding: 0; align-items: stretch; }
     .overlay__panel { width: 100%; max-height: none; height: 100%; border-radius: 0; }
+    .overlay--sheet .overlay__panel, .overlay--full .overlay__panel { height: 100dvh; }
+    .overlay__header { padding: var(--space-4); }
+    .overlay__body { padding: var(--space-4); }
+    .overlay__footer { flex-wrap: wrap; padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); }
+    .overlay__footer > .action-bar { margin-left: auto; flex-wrap: nowrap; }
   }
   @keyframes fade-in { from { opacity: 0; } }
   @keyframes rise-in { from { opacity: 0; transform: translateY(8px); } }
@@ -187,7 +192,7 @@
   @keyframes loader-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 
   /* ── Segmented control / tabs ── */
-  .segmented { display: inline-flex; flex-wrap: nowrap; gap: var(--space-1); scrollbar-width: none; }
+  .segmented { display: inline-flex; flex-wrap: nowrap; gap: var(--space-1); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .segmented::-webkit-scrollbar { display: none; }
   .segmented__item {
     display: inline-flex; align-items: center; gap: var(--space-2); height: var(--control-height-sm); padding: 0 var(--space-3);
@@ -196,7 +201,12 @@
     white-space: nowrap; flex-shrink: 0; user-select: none;
   }
   .segmented__item:hover { background: var(--color-surface-hover); color: var(--color-text); }
+  .segmented__item:focus-visible { outline-offset: -2px; }
   .segmented__item.is-active { background: var(--color-accent); color: var(--color-accent-text); }
+  /* Long tab rows on phones: scroll edge to edge instead of clipping at the page gutter. */
+  @media (max-width: 860px) {
+    .segmented--bleed { display: flex; max-width: none; margin-inline: calc(-1 * var(--page-padding)); padding-inline: var(--page-padding); scroll-padding-inline: var(--page-padding); }
+  }
   .segmented__count { font-size: var(--text-xs); opacity: 0.7; font-variant-numeric: tabular-nums; }
 
   /* ── Table ── */
@@ -206,11 +216,28 @@
   .table td { padding: var(--space-3); border-bottom: var(--border-width) solid var(--color-border); vertical-align: middle; }
   .table tr:last-child td { border-bottom: 0; }
   .table--numeric td:not(:first-child), .table--numeric th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  @media (max-width: 560px) {
+    /* Phones: each row becomes a small card — the primary cell on its own line, the rest wrap beneath. */
+    .table--stack, .table--stack tbody { display: block; }
+    .table--stack thead { display: none; }
+    .table--stack tr { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-top: var(--border-width) solid var(--color-border); }
+    .table--stack tr:first-child { border-top: 0; }
+    .table--stack td { display: block; padding: 0; border: 0; width: auto !important; max-width: 100% !important; min-width: 0; }
+    .table--stack .table__primary { flex: 1 1 100%; }
+    .table--stack .table__end { margin-left: auto; }
+    .table--stack .table__optional { display: none; }
+  }
 
   /* ── List rows ── */
   .list { display: flex; flex-direction: column; }
   .list__row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: var(--border-width) solid var(--color-border); min-width: 0; }
   .list__row:first-child { border-top: 0; }
+  @media (max-width: 560px) {
+    /* Phones: the main text takes the first line, badges and actions wrap beneath it. */
+    .list__row { flex-wrap: wrap; row-gap: var(--space-2); }
+    .list__row > .grow:first-child { flex-basis: 100%; overflow-wrap: anywhere; }
+    .list__row > .action-bar { flex: 0 1 auto; min-width: 0; }
+  }
   .list__row--link:hover { background: var(--color-surface-subtle); }
 
   /* ── Stat ── */

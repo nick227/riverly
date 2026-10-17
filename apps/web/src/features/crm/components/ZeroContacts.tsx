@@ -117,7 +117,7 @@ export function ZeroContacts({
       {/* ── Tier 2: Continuous Sync & Inbound Sources ── */}
       <div className="crm-zero-contacts__secondary-section">
         <div className="crm-zero-contacts__section-header">
-          <span className="crm-zero-contacts__section-kicker">Automated ingestion &amp; integrations</span>
+          <span className="crm-zero-contacts__section-kicker">Integrations</span>
           <p className="crm-zero-contacts__section-desc">
             Connect your storefront, marketing channels, or web forms for continuous intake.
           </p>
@@ -212,23 +212,6 @@ export function ZeroContacts({
         </div>
       </div>
 
-      {/* ── Tier 3: Safeguards Status Bar ── */}
-      <div className="crm-zero-contacts__safeguards-bar">
-        <div className="crm-zero-contacts__safeguard-pill">
-          <Check size={12} className="crm-zero-contacts__safeguard-icon" aria-hidden />
-          <span>Phone &amp; email deduplication</span>
-        </div>
-        <span className="crm-zero-contacts__safeguard-dot" aria-hidden>&middot;</span>
-        <div className="crm-zero-contacts__safeguard-pill">
-          <Check size={12} className="crm-zero-contacts__safeguard-icon" aria-hidden />
-          <span>Automatic initial stage routing</span>
-        </div>
-        <span className="crm-zero-contacts__safeguard-dot" aria-hidden>&middot;</span>
-        <div className="crm-zero-contacts__safeguard-pill">
-          <Check size={12} className="crm-zero-contacts__safeguard-icon" aria-hidden />
-          <span>Preview verification before database commit</span>
-        </div>
-      </div>
     </div>
   )
 }

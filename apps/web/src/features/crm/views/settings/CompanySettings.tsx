@@ -217,26 +217,6 @@ export function CompanySettings() {
 
   return (
     <div className="block gap-6">
-      {/* ── Hero Banner ── */}
-      <div className="onboarding-hero">
-        <div className="onboarding-hero__content">
-          <span className="onboarding-eyebrow">Workspace Setup</span>
-          <h2 className="onboarding-hero__heading">Welcome, {firstName}</h2>
-          <p className="onboarding-hero__lede">
-            Configure your contractor company profile, trade focus, and initial team setup.
-          </p>
-        </div>
-        <div className="row gap-2 items-center">
-          {hasCompletedOnboarding ? (
-            <Badge tone="success">✓ Onboarding Complete</Badge>
-          ) : (
-            <Badge tone="warning">Setup in Progress</Badge>
-          )}
-          <Badge tone={isPremium ? 'accent' : 'neutral'}>
-            {isPremium ? '✨ Premium Pro' : 'Free CRM'}
-          </Badge>
-        </div>
-      </div>
 
       {/* ── Main Form Stack ── */}
       <form onSubmit={handleSave} className="stack gap-6">
@@ -379,7 +359,7 @@ export function CompanySettings() {
           </div>
 
           {logoUrl ? (
-            <div className="mt-3 p-3 row gap-3 items-center" style={{ background: 'var(--color-surface-subtle)', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--color-border)', width: 'fit-content' }}>
+            <div className="mt-3 p-3 row gap-3 items-center" style={{ background: 'var(--color-surface-subtle)', borderRadius: 'var(--radius-md)', border: 'var(--border-width) solid var(--color-border)', maxWidth: '100%' }}>
               <img
                 src={logoUrl}
                 alt="Company logo preview"
@@ -460,12 +440,11 @@ export function CompanySettings() {
             >
               {hasCompletedOnboarding ? (
                 <>
-                  <Check size={16} />
-                  <span>Save Workspace Changes</span>
+                  <span>Save</span>
                 </>
               ) : (
                 <>
-                  <span>Launch Riverly CRM</span>
+                  <span>Launch</span>
                   <ArrowRight size={16} />
                 </>
               )}

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import type { Permission } from '@project/shared/permissions'
 import { cx } from '@/lib/cx'
@@ -37,6 +38,11 @@ export default function SettingsView() {
   const location = useLocation()
   const sections = SECTIONS.filter((s) => !s.permission || can(s.permission))
   const activeSection = SECTIONS.find((s) => location.pathname.includes(`/settings/${s.path}`))
+  const tabs = useRef<HTMLElement>(null)
+  // Phones show the section tabs as a scroller; keep the open section in view.
+  useEffect(() => {
+    tabs.current?.querySelector<HTMLElement>('.is-active')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [location.pathname])
   const sectionLabel = activeSection ? `${activeSection.label} Settings` : 'Company Settings'
 
   usePageTitle(
@@ -54,7 +60,7 @@ export default function SettingsView() {
           <h1 className="heading heading--1">Settings</h1>
         </div>
       </div>
-      <nav className="segmented" aria-label="Settings sections" style={{ marginBottom: 'var(--section-gap)' }}>
+      <nav ref={tabs} className="segmented segmented--bleed crm-settings-nav" aria-label="Settings sections">
         {sections.map((s) => (
           <NavLink key={s.path} to={`/settings/${s.path}`} className={({ isActive }) => cx('segmented__item', isActive && 'is-active')}>
             {s.label}

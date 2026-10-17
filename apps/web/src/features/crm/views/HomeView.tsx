@@ -105,7 +105,7 @@ export default function HomeView() {
 }
 
 function summary(n: number) {
-  if (!n) return 'Your list is clear. New leads are the best use of a free hour, so check Contacts for anyone not yet called.'
+  if (!n) return ''
   return `You have ${n} ${n === 1 ? 'task' : 'tasks'} waiting. Start at the top: homeowners who wait for a call often hire someone else.`
 }
 

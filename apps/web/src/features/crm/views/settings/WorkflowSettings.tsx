@@ -91,6 +91,45 @@ export function WorkflowSettings() {
 
   return (
     <div className="stack gap-6">
+
+      <Card>
+        <CardHeader
+          title="Stages"
+          actions={
+            <Button
+              size="sm"
+              onClick={() =>
+                update((d) => {
+                  const id = uniqueId('New stage', d.stages.map((s) => s.id))
+                  d.stages.push({ id, label: 'New stage', order: d.stages.length + 1, fieldIds: [], emailTemplateKeys: [] })
+                  setOpen(id)
+                })
+              }
+            >
+              <Plus aria-hidden /> Add stage
+            </Button>
+          }
+        />
+        <div className="list">
+          {stages.map((s, i) => (
+            <div key={s.id} className="stack gap-3" style={{ padding: 'var(--space-3) 0', borderTop: i ? 'var(--border-width) solid var(--color-border)' : undefined }}>
+              <div className="row gap-2 crm-stage-row">
+                <IconButton size="sm" label={open === s.id ? 'Hide instructions' : 'Edit instructions'} icon={open === s.id ? <ChevronDown /> : <ChevronRight />} onClick={() => setOpen(open === s.id ? null : s.id)} />
+                <Input aria-label={`Stage ${i + 1} name`} value={s.label} onChange={(e) => updateStage(s.id, { label: e.target.value })} disabled={s.retired} className="crm-stage-row__name" />
+                <span className="text text--xs text--muted grow crm-stage-row__count">{counts[s.id] ? `${counts[s.id]} active jobs` : null}</span>
+                {s.retired ? <Badge tone="outline">Retired</Badge> : null}
+                <IconButton size="sm" label="Move up" icon={<ArrowUp />} onClick={() => move(s.id, -1)} disabled={i === 0} />
+                <IconButton size="sm" label="Move down" icon={<ArrowDown />} onClick={() => move(s.id, 1)} disabled={i === stages.length - 1} />
+                <Button size="sm" variant={s.retired ? 'secondary' : 'ghost'} onClick={() => updateStage(s.id, { retired: !s.retired })} disabled={!s.retired && active.length <= 1}>
+                  {s.retired ? 'Restore' : 'Retire'}
+                </Button>
+              </div>
+              {open === s.id ? <StageInstructions stage={s} onChange={(instructions) => updateStage(s.id, { instructions })} /> : null}
+            </div>
+          ))}
+        </div>
+      </Card>
+      
       <Card>
         <div className="row row--between row--wrap gap-3">
           <div className="stack gap-1">
@@ -130,44 +169,6 @@ export function WorkflowSettings() {
             </Notice>
           </div>
         ) : null}
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Stages"
-          actions={
-            <Button
-              size="sm"
-              onClick={() =>
-                update((d) => {
-                  const id = uniqueId('New stage', d.stages.map((s) => s.id))
-                  d.stages.push({ id, label: 'New stage', order: d.stages.length + 1, fieldIds: [], emailTemplateKeys: [] })
-                  setOpen(id)
-                })
-              }
-            >
-              <Plus aria-hidden /> Add stage
-            </Button>
-          }
-        />
-        <div className="list">
-          {stages.map((s, i) => (
-            <div key={s.id} className="stack gap-3" style={{ padding: 'var(--space-3) 0', borderTop: i ? 'var(--border-width) solid var(--color-border)' : undefined }}>
-              <div className="row gap-2">
-                <IconButton size="sm" label={open === s.id ? 'Hide instructions' : 'Edit instructions'} icon={open === s.id ? <ChevronDown /> : <ChevronRight />} onClick={() => setOpen(open === s.id ? null : s.id)} />
-                <Input aria-label={`Stage ${i + 1} name`} value={s.label} onChange={(e) => updateStage(s.id, { label: e.target.value })} disabled={s.retired} style={{ maxWidth: 280 }} />
-                <span className="text text--xs text--muted grow">{counts[s.id] ? `${counts[s.id]} active jobs` : null}</span>
-                {s.retired ? <Badge tone="outline">Retired</Badge> : null}
-                <IconButton size="sm" label="Move up" icon={<ArrowUp />} onClick={() => move(s.id, -1)} disabled={i === 0} />
-                <IconButton size="sm" label="Move down" icon={<ArrowDown />} onClick={() => move(s.id, 1)} disabled={i === stages.length - 1} />
-                <Button size="sm" variant={s.retired ? 'secondary' : 'ghost'} onClick={() => updateStage(s.id, { retired: !s.retired })} disabled={!s.retired && active.length <= 1}>
-                  {s.retired ? 'Restore' : 'Retire'}
-                </Button>
-              </div>
-              {open === s.id ? <StageInstructions stage={s} onChange={(instructions) => updateStage(s.id, { instructions })} /> : null}
-            </div>
-          ))}
-        </div>
       </Card>
     </div>
   )

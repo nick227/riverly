@@ -123,8 +123,8 @@ export default function ContactsView() {
           />
         ) : (
           <>
-            <div className="row row--wrap gap-3">
-              <div className="crm-header__search" style={{ marginLeft: 0, maxWidth: 360 }}>
+            <div className="row row--wrap gap-3 crm-filters">
+              <div className="crm-header__search crm-filters__search" style={{ marginLeft: 0, maxWidth: 360 }}>
                 <Search aria-hidden />
                 <Input type="search" aria-label="Search contacts" placeholder="Search name, email, phone, address" value={q} onChange={(e) => (setQ(e.target.value), set('q', e.target.value.trim()))} />
               </div>
@@ -148,6 +148,7 @@ export default function ContactsView() {
 
             {view ? (
               <Segmented
+                className="segmented--bleed"
                 label="Stage"
                 value={stageId}
                 onChange={(v) => set('stage', v)}

@@ -16,48 +16,59 @@ type Period = 'today' | 'week'
  * Live scoreboard beside the company river, in the spirit of a sales-floor wallboard:
  * running totals for today or this week, the biggest sale and who is leading.
  */
-export function SalesBoard({ view }: { view: WorkflowView }) {
+export function SalesBoard(_props: { view: WorkflowView }) {
   const [period, setPeriod] = useState<Period>('today')
   const q = useSalesBoard(period)
-  const since = period === 'today' ? 'yesterday' : 'last week'
   return (
-    <aside className="crm-board" aria-label="Sales board">
+    <aside className="crm-board" aria-label="Activity overview">
       <div className="crm-board__head">
-        <span className="crm-board__live" aria-hidden />
-        <h2 className="heading heading--4 grow">Scoreboard</h2>
-        <Segmented<Period> label="Board period" value={period} onChange={setPeriod} options={[{ value: 'today', label: 'Today' }, { value: 'week', label: 'This week' }]} />
+        <Segmented<Period>
+          value={period}
+          onChange={setPeriod}
+          options={[{ value: 'today', label: 'Today' }, { value: 'week', label: 'This week' }]}
+          label="Overview period"
+        />
       </div>
       {q.isLoading ? (
         <SkeletonList rows={3} height={96} />
       ) : q.error || !q.data ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
-        <BoardBody board={q.data} since={since} view={view} />
+        <BoardBody board={q.data} period={period} />
       )}
     </aside>
   )
 }
 
-function BoardBody({ board: b, since, view }: { board: Board; since: string; view: WorkflowView }) {
+function BoardBody({ board: b, period }: { board: Board; period: Period }) {
   const m = b.metrics
   return (
     <>
-      <Card variant="compact" className="crm-board__hero">
-        <span className="crm-board__label">Sales</span>
-        <span className="crm-board__money">{money(m.salesValueCents) ?? '$0'}</span>
-        <span className="text text--sm text--secondary">
-          {m.sales} {m.sales === 1 ? 'contract' : 'contracts'} signed <Delta now={m.salesValueCents} before={b.previous.salesValueCents} since={since} format={(n) => money(n) ?? '$0'} />
-        </span>
+      <Card variant="flush" className="crm-board__overview">
+        <table className="crm-board__table">
+          <caption className="visually-hidden">Activity totals for {period === 'today' ? 'today' : 'this week'}. Open leads and pending inspections reflect current totals.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Activity</th>
+              <th scope="col">{period === 'today' ? 'Today' : 'This week'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="crm-board__sales-row">
+              <th scope="row">Sales value</th>
+              <td>{money(m.salesValueCents) ?? '$0'}</td>
+            </tr>
+            <Stat label="Contracts" value={m.sales} />
+            <Stat label="Calls" value={m.calls} />
+            <Stat label="New leads" value={m.newLeads} />
+            <Stat label="Inspections booked" value={m.inspectionsBooked} />
+          </tbody>
+          <tbody className="crm-board__current">
+            <Stat label="Open leads" value={m.openLeads} hint="Right now" />
+            <Stat label="Inspections pending" value={m.inspectionsPending} hint="Scheduled" />
+          </tbody>
+        </table>
       </Card>
-
-      <div className="crm-board__grid">
-        <Stat label="Calls" value={m.calls} previous={b.previous.calls} since={since} />
-        <Stat label="New leads" value={m.newLeads} previous={b.previous.newLeads} since={since} />
-        <Stat label="Inspections booked" value={m.inspectionsBooked} previous={b.previous.inspectionsBooked} since={since} />
-        <Stat label="Contracts" value={m.sales} previous={b.previous.sales} since={since} />
-        <Stat label="Open leads" value={m.openLeads} hint="right now" />
-        <Stat label="Inspections pending" value={m.inspectionsPending} hint="scheduled" />
-      </div>
 
       {b.topSale ? (
         <Card variant="compact" className="crm-board__top">
@@ -100,27 +111,21 @@ function BoardBody({ board: b, since, view }: { board: Board; since: string; vie
             ))}
           </ol>
         ) : (
-          <EmptyState compact title={`No calls or sales yet. First ${view.terms.owner.toLowerCase()} on the board leads.`} />
+          <EmptyState compact title={`No calls or sales yet.`} />
         )}
       </Card>
     </>
   )
 }
 
-function Stat({ label, value, previous, since, hint }: { label: string; value: number; previous?: number; since?: string; hint?: string }) {
+function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
-    <div className="crm-board__stat">
-      <span className="crm-board__value">{value}</span>
-      <span className="crm-board__label">{label}</span>
-      {previous !== undefined && since ? <Delta now={value} before={previous} since={since} /> : <span className="text text--xs text--muted">{hint}</span>}
-    </div>
+    <tr>
+      <th scope="row">
+        {label}
+        {hint ? <span className="crm-board__hint">{hint}</span> : null}
+      </th>
+      <td>{value.toLocaleString()}</td>
+    </tr>
   )
-}
-
-/** Change against the same span earlier ("+3 vs yesterday"); green when up. */
-function Delta({ now, before, since, format = String }: { now: number; before: number; since: string; format?: (n: number) => string }) {
-  const diff = now - before
-  const tone = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'
-  const text = diff === 0 ? `same as ${since}` : `${diff > 0 ? '+' : '−'}${format(Math.abs(diff))} vs ${since}`
-  return <span className={cx('crm-board__delta', `crm-board__delta--${tone}`)}>{text}</span>
 }

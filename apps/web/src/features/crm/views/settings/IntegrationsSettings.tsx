@@ -93,7 +93,6 @@ export function IntegrationsSettings() {
         <div className="row row--between">
           <div className="stack gap-1">
             <h1 className="heading heading--4">Integrations</h1>
-            <p className="text text--xs text--muted">Connect external services to synchronize contacts, leads, and orders with automated deduplication.</p>
           </div>
           <Badge tone={connected ? 'success' : 'neutral'}>
             {connected ? <span className="connector__dot" aria-hidden /> : null}
@@ -102,10 +101,10 @@ export function IntegrationsSettings() {
         </div>
       </Card>
 
-      <SyncConnectorCard connector={WOOCOMMERCE} integration={find('WOOCOMMERCE')} />
+      <EmailServerCard integration={find('EMAIL_SERVER')} />
       <SyncConnectorCard connector={HUBSPOT} integration={find('HUBSPOT')} />
       <ZapierCard integration={find('ZAPIER')} />
-      <EmailServerCard integration={find('EMAIL_SERVER')} />
+      <SyncConnectorCard connector={WOOCOMMERCE} integration={find('WOOCOMMERCE')} />
       <PlannedConnectors />
     </div>
   )

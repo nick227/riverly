@@ -68,7 +68,7 @@ export function TeamSettings() {
           <SkeletonList rows={3} />
         ) : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table table--stack">
               <thead>
                 <tr><th>Person</th><th>Role</th><th>Status</th><th>Joined</th><th /></tr>
               </thead>
@@ -77,7 +77,7 @@ export function TeamSettings() {
                   const editable = m.userId !== me?.id && (isOwner || (m.role !== 'ADMIN' && m.role !== 'OWNER'))
                   return (
                     <tr key={m.userId}>
-                      <td><Identity name={m.displayName} src={m.avatarUrl} size="sm" secondary={m.email} slug={m.slug} /></td>
+                      <td className="table__primary"><Identity name={m.displayName} src={m.avatarUrl} size="sm" secondary={m.email} slug={m.slug} /></td>
                       <td style={{ width: 160 }}>
                         {editable ? (
                           <Select size_="sm" aria-label={`Role for ${m.displayName}`} value={m.role} options={roleOptions.some((o) => o.value === m.role) ? roleOptions : [{ value: m.role, label: roleLabel(m.role) }, ...roleOptions]} onChange={(e) => update.mutate({ userId: m.userId, role: e.target.value as Role }, { onSuccess: () => toast.success('Role updated'), onError: (err) => toast.error(err) })} />
@@ -86,8 +86,8 @@ export function TeamSettings() {
                         )}
                       </td>
                       <td><Badge tone={m.status === 'ACTIVE' ? 'success' : 'outline'}>{m.status === 'ACTIVE' ? 'Active' : 'Deactivated'}</Badge></td>
-                      <td className="text--muted">{dateOnly(m.joinedAt)}</td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td className="text--muted table__optional">{dateOnly(m.joinedAt)}</td>
+                      <td className={editable ? 'table__end' : 'table__optional'} style={{ textAlign: 'right' }}>
                         {editable ? (
                           <Button size="sm" variant={m.status === 'ACTIVE' ? 'danger' : 'secondary'} onClick={() => update.mutate({ userId: m.userId, status: m.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE' }, { onSuccess: () => toast.success('Access updated'), onError: (err) => toast.error(err) })}>
                             {m.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate'}

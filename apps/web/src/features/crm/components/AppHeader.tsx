@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Activity, Building2, CreditCard, Compass, House, LogOut, Moon, Palette, Search, Sparkles, Sun, UserRound, Users, Zap } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Activity, Building2, CreditCard, Compass, House, LogOut, Moon, Palette, Search, Settings, Sparkles, Sun, UserRound, Users, Zap, type LucideIcon } from 'lucide-react'
 import { useLogout, useOpportunities, useSwitchOrganization } from '@project/sdk'
 import { cx } from '@/lib/cx'
 import { useSession } from '@/lib/session'
@@ -14,8 +14,38 @@ import { loadingScreen } from '@/components/patterns/LoadingScreen'
 import { useWorkflowView } from '../config/workflow'
 import { ThemeModal } from './ThemeModal'
 
+interface NavItem {
+  to: string
+  label: string
+  icon: LucideIcon
+  /** Extra path prefixes that count as this section (a job lives under Contacts). */
+  match?: string[]
+  /** Shown only in the mobile bar; desktop reaches it via the brand link or account menu. */
+  mobileOnly?: boolean
+}
+
+/** The one primary navigation list: desktop header links and the mobile bottom bar both render it. */
+function usePrimaryNav(): NavItem[] {
+  const { me, can } = useSession()
+  return [
+    { to: '/', label: 'Home', icon: House, mobileOnly: true },
+    { to: '/activity', label: 'Activity', icon: Activity },
+    { to: '/contacts', label: 'Contacts', icon: Users, match: ['/jobs/'] },
+    ...(can('reports.view') ? [{ to: '/settings', label: 'Settings', icon: Settings }] : []),
+    ...(me ? [{ to: `/u/${me.slug}`, label: 'Profile', icon: UserRound, mobileOnly: true }] : []),
+  ]
+}
+
+function useIsActive() {
+  const { pathname } = useLocation()
+  return (item: Pick<NavItem, 'to' | 'match'>) =>
+    item.to === '/' ? pathname === '/' : pathname === item.to || pathname.startsWith(`${item.to}/`) || !!item.match?.some((m) => pathname.startsWith(m))
+}
+
 export function AppHeader() {
-  const { me, org, can } = useSession()
+  const { me, org } = useSession()
+  const nav = usePrimaryNav()
+  const isActive = useIsActive()
   const logout = useLogout()
   const switchOrg = useSwitchOrganization()
   const navigate = useNavigate()
@@ -36,7 +66,6 @@ export function AppHeader() {
       },
     })
   }
-  const navClass = ({ isActive }: { isActive: boolean }) => cx('crm-header__link', isActive && 'is-active')
 
   return (
     <>
@@ -46,31 +75,27 @@ export function AppHeader() {
             <span className="crm-header__company">{org?.name ?? 'Riverly'}</span>
           </Link>
           <nav className="crm-header__nav" aria-label="Primary">
-            <NavLink to="/activity" className={navClass}>
-              Activity
-            </NavLink>
-            <NavLink to="/contacts" className={navClass}>
-              Contacts
-            </NavLink>
-            {can('reports.view') ? (
-              <NavLink to="/settings" className={navClass}>
-                Settings
-              </NavLink>
-            ) : null}
+            {nav
+              .filter((item) => !item.mobileOnly)
+              .map((item) => (
+                <Link key={item.to} to={item.to} className={cx('crm-header__link', isActive(item) && 'is-active')} aria-current={isActive(item) ? 'page' : undefined}>
+                  {item.label}
+                </Link>
+              ))}
           </nav>
           <GlobalSearch />
           {isPremium ? (
-            <span className="crm-badge--pro" title="Riverly Premium Pro Active">
+            <span className="crm-badge--pro crm-header__upgrade" title="Riverly Premium Pro Active">
               <Sparkles size={11} /> Pro
             </span>
           ) : (
             <button
               type="button"
-              className="crm-badge--upgrade"
+              className="crm-badge--upgrade crm-header__upgrade"
               onClick={() => openUpgradeModal('header')}
               title="Unlock Email, AI, Reports & Broadcasting"
             >
-              <Zap size={11} /> Upgrade
+              <Zap size={11} />
             </button>
           )}
           <Menu
@@ -135,22 +160,12 @@ export function AppHeader() {
         </div>
       </header>
       <nav className="crm-nav-mobile" aria-label="Primary">
-        <NavLink to="/" end className={({ isActive }) => cx(isActive && 'is-active')}>
-          <House aria-hidden />
-          Home
-        </NavLink>
-        <NavLink to="/activity" className={({ isActive }) => cx(isActive && 'is-active')}>
-          <Activity aria-hidden />
-          Activity
-        </NavLink>
-        <NavLink to="/contacts" className={({ isActive }) => cx(isActive && 'is-active')}>
-          <Users aria-hidden />
-          Contacts
-        </NavLink>
-        <NavLink to={`/u/${me.slug}`} className={({ isActive }) => cx(isActive && 'is-active')}>
-          <UserRound aria-hidden />
-          Profile
-        </NavLink>
+        {nav.map(({ icon: Icon, ...item }) => (
+          <Link key={item.to} to={item.to} className={cx(isActive(item) && 'is-active')} aria-current={isActive(item) ? 'page' : undefined}>
+            <Icon aria-hidden />
+            {item.label}
+          </Link>
+        ))}
       </nav>
       <ThemeModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
     </>

@@ -228,7 +228,7 @@ function EnvelopeMeta({ preview }: { preview: RenderedEmail }) {
       <dt>From</dt>
       <dd>
         {preview.sender ? (
-          <span className="row gap-2">
+          <span className="row row--wrap gap-2">
             {preview.sender.fromName} &lt;{preview.sender.fromEmail}&gt;
             {preview.sender.provider === 'DEV_LOG' ? <Badge tone="warning">Development — not delivered</Badge> : null}
           </span>

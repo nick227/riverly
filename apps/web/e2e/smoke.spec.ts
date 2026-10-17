@@ -69,7 +69,6 @@ test.describe('roles', () => {
     await loginAs(page, USERS.manager)
     await page.getByRole('link', { name: 'Activity', exact: true }).click()
     const board = page.getByRole('complementary', { name: 'Sales board' })
-    await expect(board.getByRole('heading', { name: 'Scoreboard' })).toBeVisible()
     await board.getByRole('tab', { name: 'This week' }).click()
     await expect(board.getByRole('heading', { name: 'Leaders' })).toBeVisible()
     await page.getByRole('link', { name: 'Settings', exact: true }).click()
@@ -126,7 +125,8 @@ test.describe('roles', () => {
     const row = page.locator('.crm-job-row').nth(1)
     const owner = row.getByRole('combobox', { name: /Assigned to for/ })
     await expect(owner).toBeEnabled()
-    expect(await owner.locator('option').count()).toBeGreaterThan(2)
+    // Teammates load after the row renders; wait for them rather than counting the placeholder alone.
+    await expect.poll(() => owner.locator('option').count()).toBeGreaterThan(2)
     const status = row.getByRole('combobox', { name: /Status for/ })
     await expect(status).toHaveValue('OPEN')
     await status.selectOption('LOST')

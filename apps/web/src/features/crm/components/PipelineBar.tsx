@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { CheckCircle2, Circle, CircleDot } from 'lucide-react'
 import type { StageDef } from '@project/sdk'
 import { cx } from '@/lib/cx'
@@ -29,9 +29,19 @@ export function PipelineBar({
 }) {
   const currentIndex = stages.findIndex((s) => s.id === currentStageId)
   const style = { '--stages': stages.length } as CSSProperties
+  const nav = useRef<HTMLElement>(null)
+  const focusId = selectedStageId ?? currentStageId
+
+  // On phones the full bar scrolls sideways; keep the stage being worked on in view (no page scroll).
+  useEffect(() => {
+    const el = nav.current
+    if (compact || !el || el.scrollWidth <= el.clientWidth) return
+    const seg = el.querySelector<HTMLElement>('.is-selected') ?? el.querySelector<HTMLElement>('.is-current')
+    if (seg) el.scrollTo({ left: seg.offsetLeft - (el.clientWidth - seg.offsetWidth) / 2 })
+  }, [compact, focusId])
 
   return (
-    <nav className={cx('crm-pipeline', compact && 'crm-pipeline--compact')} style={style} aria-label={label}>
+    <nav ref={nav} className={cx('crm-pipeline', compact && 'crm-pipeline--compact')} style={style} aria-label={label}>
       {stages.map((s, i) => {
         const isDone = i < currentIndex
         const isCurrent = i === currentIndex

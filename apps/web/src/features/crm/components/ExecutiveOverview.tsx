@@ -66,11 +66,11 @@ export function ExecutiveOverview({
   const isLoading = pipeline.isLoading || activity.isLoading
 
   return (
-    <section className="crm-home__section" aria-label="Executive Overview">
+    <section className="crm-home__section" aria-label="Overview">
       <div className="row row--between row--wrap gap-3 pb-2 border-b">
         <div className="row row--align-center gap-2">
           <h2 className="crm-home__heading" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-            Executive Overview
+            Overview
           </h2>
           <Badge tone="neutral">Last {days} days</Badge>
         </div>
@@ -81,7 +81,7 @@ export function ExecutiveOverview({
             <ArrowUpRight size={14} aria-hidden />
           </Link>
           <Select
-            aria-label="Executive Overview window"
+            aria-label="Overview window"
             value={String(days)}
             onChange={(e) => setDays(Number(e.target.value))}
             options={[30, 90, 180, 365].map((n) => ({ value: String(n), label: `Last ${n} days` }))}
